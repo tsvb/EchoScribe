@@ -1,0 +1,14 @@
+{
+  "name": "meeting-assistant",
+  "version": "1.0.0",
+  "description": "A premium local web-based meeting recorder, transcriber, and summarizer.",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

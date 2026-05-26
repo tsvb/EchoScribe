@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EchoScribe | Premium Local Meeting Assistant</title>
+  <meta name="description" content="Record, transcribe, and summarize meetings locally with advanced AI speaker attribution, action item checklists, and email drafts.">
+  
+  <!-- Modern Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+  
+  <!-- Core Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  
+  <!-- Background Glow Effects -->
+  <div class="glow-bg glow-purple" aria-hidden="true"></div>
+  <div class="glow-bg glow-blue" aria-hidden="true"></div>
+  
+  <!-- Main Application Wrapper -->
+  <div class="app-container">
+    
+    <!-- Top Navigation Bar -->
+    <header class="app-header">
+      <div class="logo-section">
+        <div class="logo-icon" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="9" y="3" width="6" height="12" rx="3" fill="url(#logo-grad)" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M5 10C5 13.866 8.13401 17 12 17C15.866 17 19 13.866 19 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="12" y1="17" x2="12" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="8" y1="21" x2="16" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <defs>
+              <linearGradient id="logo-grad" x1="9" y1="3" x2="15" y2="15" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#8B5CF6"/>
+                <stop offset="1" stop-color="#06B6D4"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <h1>EchoScribe</h1>
+        <span class="badge">Local AI v2.0</span>
+      </div>
+      
+      <div class="header-actions">
+        <button id="btn-settings-toggle" class="btn-icon" aria-label="Open Settings" title="Configure Gemini API">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Gemini Key Warning Banner -->
+    <div id="api-key-warning" class="warning-banner hidden">
+      <div class="warning-content">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="warning-icon">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+        <span><strong>Missing Gemini API Key:</strong> To start transcribing and summarizing, please enter your Gemini API Key in Settings.</span>
+      </div>
+      <button id="btn-settings-link" class="btn-banner-action">Configure Key</button>
+    </div>
+
+    <!-- Main Workspace -->
+    <main class="workspace-grid">
+      
+      <!-- LEFT PANEL: Meeting Deck -->
+      <section class="panel meeting-deck" aria-label="Meeting Controls">
+        
+        <!-- Meeting Info Form -->
+        <div class="deck-section">
+          <label for="meeting-title" class="section-label">Meeting Context</label>
+          <input type="text" id="meeting-title" class="input-field" placeholder="E.g., Weekly Sync, Product Design Session..." value="Product Brainstorm">
+        </div>
+
+        <hr class="panel-divider" />
+
+        <!-- Audio Recording Station -->
+        <div class="deck-section recording-station">
+          <span class="section-label">Audio Recorder</span>
+          
+          <!-- Large Mic Control -->
+          <div class="mic-outer-container">
+            <button id="btn-record-primary" class="btn-record idle" aria-label="Start Recording" title="Start Recording">
+              <div class="mic-glow"></div>
+              <div class="mic-inner">
+                <svg id="svg-mic" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="3" width="6" height="12" rx="3"></rect>
+                  <path d="M5 10c0 3.87 3.13 7 7 7s7-3.13 7-7"></path>
+                  <line x1="12" y1="19" x2="12" y2="22"></line>
+                </svg>
+                <div class="pulse-ring"></div>
+              </div>
+            </button>
+          </div>
+
+          <!-- Time & Status Indicators -->
+          <div class="recording-status-container">
+            <span id="recording-status" class="recording-status">Idle</span>
+            <span id="recording-timer" class="recording-timer">00:00</span>
+          </div>
+
+          <!-- Active Recording Controls (Hidden by default, slide out) -->
+          <div id="active-controls" class="active-controls hidden">
+            <button id="btn-record-pause" class="btn-control btn-pause" aria-label="Pause Recording" title="Pause Recording">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="4" x2="18" y2="20"></line>
+                <line x1="6" y1="4" x2="6" y2="20"></line>
+              </svg>
+              <span>Pause</span>
+            </button>
+            <button id="btn-record-stop" class="btn-control btn-stop" aria-label="Stop Recording" title="Stop Recording">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
+              </svg>
+              <span>Stop & Analyze</span>
+            </button>
+          </div>
+
+          <!-- Wave Visualizer Canvas -->
+          <div class="visualizer-container">
+            <canvas id="canvas-visualizer" height="60"></canvas>
+          </div>
+        </div>
+
+        <hr class="panel-divider" />
+
+        <!-- Participants Directory -->
+        <div class="deck-section participants-section">
+          <div class="section-header-inline">
+            <label for="input-participant" class="section-label">Meeting Call Team</label>
+            <span id="participants-count" class="counter">0 on call</span>
+          </div>
+          
+          <p class="section-subtext">Add who is speaking on the call to provide speech matching context to Gemini.</p>
+          
+          <!-- Participant Input -->
+          <div class="input-action-group">
+            <input type="text" id="input-participant" class="input-field" placeholder="Enter name (e.g. Alice)...">
+            <button id="btn-add-participant" class="btn-primary" aria-label="Add Participant">+</button>
+          </div>
+
+          <!-- Participant Tags/Chips container -->
+          <div id="participants-list" class="participants-chips" role="list">
+            <!-- Dynamic Chips -->
+          </div>
+        </div>
+
+      </section>
+
+      <!-- RIGHT PANEL: Result Workspace -->
+      <section class="panel result-workspace" aria-label="AI Analysis Dashboard">
+        
+        <!-- STATE A: Empty Workspace State -->
+        <div id="state-empty" class="workspace-state state-empty">
+          <div class="empty-illustration" aria-hidden="true">
+            <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="60" cy="60" r="50" fill="url(#empty-grad)" opacity="0.15"/>
+              <path d="M60 40V80" stroke="url(#empty-grad)" stroke-width="4" stroke-linecap="round" opacity="0.3"/>
+              <path d="M45 50V70" stroke="url(#empty-grad)" stroke-width="4" stroke-linecap="round" opacity="0.3"/>
+              <path d="M75 50V70" stroke="url(#empty-grad)" stroke-width="4" stroke-linecap="round" opacity="0.3"/>
+              <rect x="35" y="30" width="50" height="60" rx="8" stroke="url(#empty-grad)" stroke-width="2" opacity="0.6"/>
+              <circle cx="60" cy="80" r="12" stroke="#06B6D4" stroke-width="3" stroke-dasharray="4 4" class="empty-rotate"/>
+              <defs>
+                <linearGradient id="empty-grad" x1="35" y1="30" x2="85" y2="90" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#8B5CF6"/>
+                  <stop offset="1" stop-color="#06B6D4"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <h2>Ready to Listen</h2>
+          <p>Configure your API Key, list the meeting participants, and press the microphone to record your discussion. Gemini will analyze the audio to produce a professional transcript, action checklists, and emails.</p>
+        </div>
+
+        <!-- STATE B: Processing Loader State -->
+        <div id="state-processing" class="workspace-state state-processing hidden">
+          <div class="loader-glass">
+            <div class="loader-spinner-container">
+              <div class="loader-spinner"></div>
+              <div class="loader-logo">🎙️</div>
+            </div>
+            <h3>Generating Intelligent Analysis</h3>
+            <p>Gemini is processing the raw audio data...</p>
+            
+            <!-- Checklist items to engage user during wait -->
+            <ul class="processing-checklist" role="list">
+              <li id="step-audio" class="processing-step active">
+                <span class="step-bullet"></span>
+                <span class="step-text">Compiling raw audio stream...</span>
+              </li>
+              <li id="step-upload" class="processing-step">
+                <span class="step-bullet"></span>
+                <span class="step-text">Sending audio payload to Gemini 2.0 Flash...</span>
+              </li>
+              <li id="step-diarization" class="processing-step">
+                <span class="step-bullet"></span>
+                <span class="step-text">Applying voice separation and speaker mapping...</span>
+              </li>
+              <li id="step-synthesis" class="processing-step">
+                <span class="step-bullet"></span>
+                <span class="step-text">Compiling transcript, action items & draft email...</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- STATE C: Active Result Dashboard -->
+        <div id="state-results" class="workspace-state state-results hidden">
+          
+          <!-- Top Dashboard Navigation Tabs -->
+          <div class="dashboard-tabs" role="tablist">
+            <button id="tab-summary" class="tab-button active" role="tab" aria-selected="true" aria-controls="panel-summary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+              </svg>
+              <span>Summary</span>
+            </button>
+            <button id="tab-transcript" class="tab-button" role="tab" aria-selected="false" aria-controls="panel-transcript">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+              <span>Transcript</span>
+            </button>
+            <button id="tab-actions" class="tab-button" role="tab" aria-selected="false" aria-controls="panel-actions">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 11 12 14 22 4"></polyline>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+              </svg>
+              <span>Action Items</span>
+            </button>
+            <button id="tab-email" class="tab-button" role="tab" aria-selected="false" aria-controls="panel-email">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,13 2,6"></polyline>
+              </svg>
+              <span>Follow-up Email</span>
+            </button>
+          </div>
+
+          <!-- TAB PANEL 1: Summary -->
+          <div id="panel-summary" class="tab-panel active" role="tabpanel" aria-labelledby="tab-summary">
+            <div class="result-header">
+              <h3>Meeting Digest</h3>
+              <div class="header-metadata">
+                <span id="summary-meeting-name" class="summary-title-chip">Weekly Sync</span>
+                <span id="summary-meeting-sentiment" class="sentiment-badge">💡 Collaborative</span>
+              </div>
+            </div>
+            <div id="content-summary" class="summary-body text-block">
+              <!-- Rendered summary content -->
+            </div>
+          </div>
+
+          <!-- TAB PANEL 2: Transcript -->
+          <div id="panel-transcript" class="tab-panel hidden" role="tabpanel" aria-labelledby="tab-transcript">
+            <div class="result-header">
+              <h3>Speaker-Attributed Dialogue</h3>
+              <span class="sub-label">Context-mapped attribution by voice tone and timeline.</span>
+            </div>
+            <div id="content-transcript" class="transcript-chat-container">
+              <!-- Dialogue Speeches -->
+            </div>
+          </div>
+
+          <!-- TAB PANEL 3: Action Items -->
+          <div id="panel-actions" class="tab-panel hidden" role="tabpanel" aria-labelledby="tab-actions">
+            <div class="result-header">
+              <h3>Action Checklist</h3>
+              <button id="btn-copy-actions" class="btn-action">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon-svg">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                <span>Copy List</span>
+              </button>
+            </div>
+            <div id="content-actions" class="actions-checklist">
+              <!-- Checklist of checkboxes -->
+            </div>
+          </div>
+
+          <!-- TAB PANEL 4: Follow-up Email -->
+          <div id="panel-email" class="tab-panel hidden" role="tabpanel" aria-labelledby="tab-email">
+            <div class="result-header">
+              <h3>Follow-up Draft</h3>
+              <div class="action-buttons-group">
+                <button id="btn-copy-email" class="btn-action">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon-svg">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  <span>Copy Draft</span>
+                </button>
+                <a id="link-send-email" class="btn-action btn-highlight" href="#" target="_blank">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon-svg">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                  </svg>
+                  <span>Send Email</span>
+                </a>
+              </div>
+            </div>
+            
+            <div class="email-preview-container">
+              <div class="email-field-row">
+                <span class="email-meta-label">Subject:</span>
+                <span id="email-preview-subject" class="email-meta-value">Subject Line</span>
+              </div>
+              <div id="email-preview-body" class="email-body-area text-block">
+                <!-- Predefined body -->
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+      
+    </main>
+
+  </div>
+
+  <!-- SETTINGS MODAL DIALOG -->
+  <dialog id="settings-dialog" class="settings-dialog-card">
+    <div class="dialog-header">
+      <h2>Gemini Configuration</h2>
+      <button id="btn-settings-close" class="btn-close-dialog" aria-label="Close dialog">&times;</button>
+    </div>
+    
+    <div class="dialog-body">
+      <p class="dialog-desc">
+        Configure your private Gemini API Key to enable raw meeting audio transcription, dialogue speaker attribution, meeting summaries, and action item compiling.
+      </p>
+      
+      <div class="form-group">
+        <label for="input-api-key" class="section-label">Gemini API Key</label>
+        <div class="input-password-wrapper">
+          <input type="password" id="input-api-key" class="input-field" placeholder="AIzaSy...">
+          <button id="btn-toggle-key-visibility" class="btn-toggle-vis" title="Toggle Visibility">👁️</button>
+        </div>
+        <span class="input-helper-text">
+          Don't have a key? Get one instantly for free at the 
+          <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer">Google AI Studio</a>.
+        </span>
+      </div>
+
+      <div class="api-key-status-row">
+        <span class="status-indicator-label">Status:</span>
+        <span id="api-status-badge" class="status-badge inactive">Not Set</span>
+      </div>
+    </div>
+    
+    <div class="dialog-footer">
+      <button id="btn-settings-cancel" class="btn-secondary">Cancel</button>
+      <button id="btn-settings-save" class="btn-primary">Save Key</button>
+    </div>
+  </dialog>
+
+  <!-- Notification Toast -->
+  <div id="notification-toast" class="notification-toast hidden" role="alert">
+    <span id="notification-message">Message</span>
+  </div>
+
+  <!-- Core Javascript Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
