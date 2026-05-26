@@ -14,6 +14,7 @@ class AudioRecorderManager: NSObject, ObservableObject, AVAudioRecorderDelegate 
     private var recordedURL: URL?
     
     func startRecording() {
+        #if os(iOS)
         let audioSession = AVAudioSession.sharedInstance()
         do {
             try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
@@ -22,6 +23,7 @@ class AudioRecorderManager: NSObject, ObservableObject, AVAudioRecorderDelegate 
             print("Failed to configure audio session: \(error.localizedDescription)")
             return
         }
+        #endif
         
         let fileManager = FileManager.default
         let documentDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -74,8 +76,10 @@ class AudioRecorderManager: NSObject, ObservableObject, AVAudioRecorderDelegate 
         isRecording = false
         isPaused = false
         
+        #if os(iOS)
         // Clean up audio session
         try? AVAudioSession.sharedInstance().setActive(false)
+        #endif
         
         completion(recordedURL)
     }
