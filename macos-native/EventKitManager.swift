@@ -1,5 +1,6 @@
 import Foundation
 import EventKit
+import Combine
 
 class EventKitManager: ObservableObject {
     @Published var permissionGranted = false

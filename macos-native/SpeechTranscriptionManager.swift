@@ -1,5 +1,6 @@
 import Foundation
 import Speech
+import Combine
 
 class SpeechTranscriptionManager: ObservableObject {
     @Published var isTranscribing = false
