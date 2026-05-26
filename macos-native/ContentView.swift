@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     // API State
     @AppStorage("gemini_api_key") private var apiKey = ""
+    @AppStorage("gemini_selected_model") private var selectedModel = "gemini-2.0-flash"
     @State private var showSettings = false
     @State private var apiStatusText = "Not Set"
     
@@ -602,6 +603,26 @@ struct ContentView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 6))
                                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(borderDark, lineWidth: 1))
                         }
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Model Selection")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.7))
+                            
+                            Picker("", selection: $selectedModel) {
+                                Text("Gemini 2.0 Flash").tag("gemini-2.0-flash")
+                                Text("Gemini 2.0 Pro Experimental").tag("gemini-2.0-pro-exp-02-05")
+                                Text("Gemini 1.5 Pro").tag("gemini-1.5-pro")
+                                Text("Gemini 1.5 Flash").tag("gemini-1.5-flash")
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 4)
+                            .background(Color.white.opacity(0.04))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(borderDark, lineWidth: 1))
+                        }
                     }
                     .padding(.horizontal, 20)
                     
@@ -685,6 +706,7 @@ struct ContentView: View {
                             audioData: audioData,
                             mimeType: "audio/mp4",
                             apiKey: apiKey,
+                            model: selectedModel,
                             title: meetingTitle,
                             participants: participants
                         ) { result in

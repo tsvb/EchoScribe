@@ -5,6 +5,7 @@
 // Application State
 const state = {
   apiKey: localStorage.getItem('gemini_api_key') || '',
+  model: localStorage.getItem('gemini_model') || 'gemini-2.0-flash',
   participants: JSON.parse(localStorage.getItem('meeting_participants')) || [],
   isRecording: false,
   isPaused: false,
@@ -28,6 +29,7 @@ const DOM = {
   btnSettingsSave: document.getElementById('btn-settings-save'),
   settingsDialog: document.getElementById('settings-dialog'),
   inputApiKey: document.getElementById('input-api-key'),
+  selectModel: document.getElementById('select-model'),
   btnToggleKeyVisibility: document.getElementById('btn-toggle-key-visibility'),
   apiStatusBadge: document.getElementById('api-status-badge'),
   apiKeyWarning: document.getElementById('api-key-warning'),
@@ -167,6 +169,7 @@ function setupEventListeners() {
 // -------------------------------------------------------------
 function openSettings() {
   DOM.inputApiKey.value = state.apiKey;
+  DOM.selectModel.value = state.model;
   DOM.settingsDialog.showModal();
 }
 
@@ -184,8 +187,13 @@ function saveApiKey() {
   const key = DOM.inputApiKey.value.trim();
   state.apiKey = key;
   localStorage.setItem('gemini_api_key', key);
+  
+  const model = DOM.selectModel.value;
+  state.model = model;
+  localStorage.setItem('gemini_model', model);
+  
   updateApiKeyStatus();
-  showToast('Gemini API Key saved successfully.');
+  showToast('Gemini configuration saved successfully.');
   closeSettings();
 }
 
@@ -641,7 +649,8 @@ Return the response strictly in JSON format matching the schema requested below.
   };
 
   // We will call the beta endpoint for Flash 2.0 to support full direct audio files with structured outputs
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  const model = state.model;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const response = await fetch(endpoint, {
     method: 'POST',

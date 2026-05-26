@@ -33,7 +33,7 @@ class GeminiClient: ObservableObject {
     @Published var error: String?
     @Published var result: MeetingAnalysisResponse?
     
-    func requestAnalysis(audioData: Data, mimeType: String, apiKey: String, title: String, participants: [String], completion: @escaping (MeetingAnalysisResponse?) -> Void) {
+    func requestAnalysis(audioData: Data, mimeType: String, apiKey: String, model: String, title: String, participants: [String], completion: @escaping (MeetingAnalysisResponse?) -> Void) {
         isProcessing = true
         error = nil
         
@@ -110,7 +110,7 @@ class GeminiClient: ObservableObject {
             ]
         ]
         
-        guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=\(apiKey)") else {
+        guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(apiKey)") else {
             DispatchQueue.main.async {
                 self.isProcessing = false
                 self.error = "Invalid API endpoint URL"
