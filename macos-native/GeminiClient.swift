@@ -18,9 +18,17 @@ struct MeetingAnalysisResponse: Codable {
 }
 
 struct TranscriptSegment: Codable, Identifiable {
-    var id: UUID { UUID() }
+    // Stored once per instance. A computed `UUID()` returns a brand-new id on
+    // every access, which breaks SwiftUI list identity/diffing.
+    let id = UUID()
     let speaker: String
     let text: String
+
+    // `id` is generated locally and isn't part of the Gemini JSON payload,
+    // so keep it out of the coding keys (otherwise decoding would look for it).
+    enum CodingKeys: String, CodingKey {
+        case speaker, text
+    }
 }
 
 struct FollowUpEmail: Codable {
@@ -110,7 +118,7 @@ class GeminiClient: ObservableObject {
             ]
         ]
         
-        guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(apiKey)") else {
+        guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent") else {
             DispatchQueue.main.async {
                 self.isProcessing = false
                 self.error = "Invalid API endpoint URL"
@@ -118,10 +126,14 @@ class GeminiClient: ObservableObject {
             }
             return
         }
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = 120
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // Pass the API key as a header rather than a `?key=` query param so it
+        // doesn't leak into URL logs, proxies, or on-disk caches.
+        request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: requestBody, options: [])

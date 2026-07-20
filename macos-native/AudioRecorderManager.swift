@@ -5,9 +5,14 @@ import Combine
 class AudioRecorderManager: NSObject, ObservableObject, AVAudioRecorderDelegate {
     @Published var isRecording = false
     @Published var isPaused = false
-    @Published var audioLevels: [Float] = Array(repeating: -160.0, count: 20)
     @Published var elapsedSeconds: TimeInterval = 0
-    
+
+    /// Emits the latest metering power (dBFS) ~10×/sec while recording. Kept as a
+    /// plain closure (not @Published) so these high-frequency updates don't force
+    /// every observer of this manager to re-render — the visualizer subscribes via
+    /// AudioLevelMonitor instead.
+    var onAudioLevel: ((Float) -> Void)?
+
     private var audioRecorder: AVAudioRecorder?
     private var timer: AnyCancellable?
     private var levelTimer: AnyCancellable?
@@ -100,10 +105,10 @@ class AudioRecorderManager: NSObject, ObservableObject, AVAudioRecorderDelegate 
                 guard let self = self, let recorder = self.audioRecorder, self.isRecording && !self.isPaused else { return }
                 recorder.updateMeters()
                 let power = recorder.averagePower(forChannel: 0)
-                
-                // Shift levels array and push new value
-                self.audioLevels.removeFirst()
-                self.audioLevels.append(power)
+
+                // Forward the level to whoever is listening (the visualizer's
+                // AudioLevelMonitor) instead of mutating a @Published property here.
+                self.onAudioLevel?(power)
             }
     }
     
@@ -112,5 +117,22 @@ class AudioRecorderManager: NSObject, ObservableObject, AVAudioRecorderDelegate 
         levelTimer?.cancel()
         timer = nil
         levelTimer = nil
+    }
+}
+
+/// Owns the rolling window of audio metering levels for the live visualizer.
+/// The recording UI's visualizer is the only observer, so the ~10 Hz updates
+/// here re-render just those bars rather than the whole window.
+final class AudioLevelMonitor: ObservableObject {
+    @Published private(set) var levels: [Float]
+
+    init(barCount: Int = 20) {
+        self.levels = Array(repeating: -160.0, count: barCount)
+    }
+
+    /// Shift in the newest metering sample, dropping the oldest.
+    func append(_ power: Float) {
+        levels.removeFirst()
+        levels.append(power)
     }
 }

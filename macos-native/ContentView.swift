@@ -211,18 +211,10 @@ struct ContentView: View {
                                     }
                                 }
                                 
-                                // Live levels visualizer wave
-                                HStack(spacing: 3) {
-                                    ForEach(recorder.audioLevels.indices, id: \.self) { idx in
-                                        RoundedRectangle(cornerRadius: 2)
-                                            .fill(LinearGradient(gradient: Gradient(colors: [accentPurple, accentCyan]), startPoint: .top, endPoint: .bottom))
-                                            .frame(width: 4, height: max(4, CGFloat(160 + recorder.audioLevels[idx]) * 0.4))
-                                    }
-                                }
-                                .frame(height: 50)
-                                .frame(maxWidth: .infinity)
-                                .background(Color.black.opacity(0.2))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                // Live levels visualizer wave — isolated subview so the
+                                // ~10 Hz metering updates re-render only these bars, not
+                                // the whole ContentView.
+                                AudioLevelVisualizer(recorder: recorder, accentPurple: accentPurple, accentCyan: accentCyan)
                             }
                             
                             Divider().background(Color.white.opacity(0.05))
@@ -693,15 +685,18 @@ struct ContentView: View {
                 stepState = "Idle"
                 return
             }
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                progressText = "Encoding audio files to payloads..."
+
+            progressText = "Encoding audio files to payloads..."
+
+            // Read the (potentially multi-MB) recording off the main thread so the
+            // UI doesn't freeze, then hop back to main for the Gemini request.
+            DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let audioData = try Data(contentsOf: url)
-                    
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+
+                    DispatchQueue.main.async {
                         progressText = "Sending multimodal payload to Gemini 2.0..."
-                        
+
                         gemini.requestAnalysis(
                             audioData: audioData,
                             mimeType: "audio/mp4",
@@ -719,7 +714,9 @@ struct ContentView: View {
                     }
                 } catch {
                     print("Failed to read audio data: \(error.localizedDescription)")
-                    stepState = "Idle"
+                    DispatchQueue.main.async {
+                        stepState = "Idle"
+                    }
                 }
             }
         }
@@ -807,5 +804,35 @@ struct TabButton: View {
             )
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Live audio-level bars. Owns its own AudioLevelMonitor so the ~10 Hz metering
+/// updates re-render only this view. It feeds the recorder's `onAudioLevel`
+/// closure into the monitor; the recorder holds a stable reference here.
+struct AudioLevelVisualizer: View {
+    let recorder: AudioRecorderManager
+    let accentPurple: Color
+    let accentCyan: Color
+
+    @StateObject private var monitor = AudioLevelMonitor()
+
+    var body: some View {
+        HStack(spacing: 3) {
+            ForEach(monitor.levels.indices, id: \.self) { idx in
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(LinearGradient(gradient: Gradient(colors: [accentPurple, accentCyan]), startPoint: .top, endPoint: .bottom))
+                    .frame(width: 4, height: max(4, CGFloat(160 + monitor.levels[idx]) * 0.4))
+            }
+        }
+        .frame(height: 50)
+        .frame(maxWidth: .infinity)
+        .background(Color.black.opacity(0.2))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .onAppear {
+            recorder.onAudioLevel = { power in
+                monitor.append(power)
+            }
+        }
     }
 }
