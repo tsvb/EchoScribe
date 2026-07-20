@@ -569,6 +569,10 @@ struct ContentView: View {
                                 // Dynamic results view with tabs
                                 VStack(spacing: 0) {
                                     meetingHeader(meeting)
+                                    if let apiError = displayedError {
+                                        errorCard(apiError)
+                                            .padding(.top, 12)
+                                    }
                                     // Tab buttons header
                                     HStack(spacing: 4) {
                                         TabButton(title: "Summary", systemName: "doc.text.fill", isSelected: selectedTab == 0) { selectedTab = 0 }
@@ -1002,6 +1006,7 @@ struct ContentView: View {
     }
 
     func startNewMeeting() {
+        guard stepState != "Processing" else { return }
         selectedMeetingID = nil
         playback.stop()
         analysisError = nil
