@@ -1,3 +1,10 @@
 node_modules/
 .DS_Store
 *.log
+
+# Xcode / XcodeGen — the macOS project is generated from macos-native/project.yml
+*.xcodeproj/
+xcuserdata/
+DerivedData/
+build/
+.build/

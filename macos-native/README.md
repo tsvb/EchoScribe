@@ -1,44 +1,82 @@
-# 🎙️ EchoScribe — macOS Native App Testing Guide
+# 🎙️ EchoScribe — macOS Native App
 
-This directory contains the native Swift & SwiftUI implementation of the **EchoScribe Meeting Assistant**. Because this application requires specific macOS privacy permissions to access your microphone and system Reminders, it is recommended to run and test it using **Xcode**.
+The native Swift & SwiftUI implementation of the **EchoScribe Meeting Assistant**.
+It records meeting audio, sends it to Gemini for transcription/summary/action items,
+and can push those action items into Apple Reminders.
+
+The Xcode project is **generated from [`project.yml`](project.yml)** with
+[XcodeGen](https://github.com/yonaskolb/XcodeGen), so it's reproducible and never
+drifts out of git. The `.xcodeproj` itself is intentionally git-ignored.
 
 ---
 
-## 🛠️ Step-by-Step Testing Guide
+## 🚀 Build & Run
 
-### 1. Open Xcode
-Ensure you have Xcode installed (available for free on the Mac App Store).
+### 1. One-time prerequisites
+- **Xcode** (from the Mac App Store).
+- **XcodeGen**: `brew install xcodegen`
 
-### 2. Create a New macOS App Project
-1. Open Xcode and select **File > New > Project...** (or press `Cmd + Shift + N`).
-2. Select the **macOS** tab at the top and select **App**, then click **Next**.
-3. Fill in the project details:
-   * **Product Name**: `EchoScribe`
-   * **Organization Identifier**: `com.yourcompany` (e.g., `com.echoscribe`)
-   * **Interface**: `SwiftUI`
-   * **Language**: `Swift`
-4. Click **Next** and save the project in a directory of your choice.
+### 2. Generate the project and run
+```bash
+cd macos-native
+xcodegen generate          # creates EchoScribe.xcodeproj from project.yml
+open EchoScribe.xcodeproj   # then press ⌘R in Xcode
+```
 
-### 3. Import Swift Files
-1. In Xcode's left sidebar (the Project Navigator), locate and **delete** the default `ContentView.swift` and `EchoScribeApp.swift` (move them to Trash).
-2. Drag and drop the 6 Swift files from this `macos-native/` directory directly into the Xcode Project Navigator:
-   * `EchoScribeApp.swift`
-   * `ContentView.swift`
-   * `AudioRecorderManager.swift`
-   * `SpeechTranscriptionManager.swift`
-   * `GeminiClient.swift`
-   * `EventKitManager.swift`
-3. Check **"Copy items if needed"** and click **Finish**.
+Re-run `xcodegen generate` any time you add/rename a Swift file or change build
+settings in `project.yml`.
 
-### 4. Configure Privacy Permissions (Critical)
-To prevent the operating system from shutting down the app when accessing the microphone or EventKit, you must declare usage descriptions:
-1. Select the top-level `EchoScribe` project icon in the Project Navigator.
-2. Select the `EchoScribe` target under **Targets** in the main editor.
-3. Select the **Info** tab at the top.
-4. Hover over any row, click the **`+`** icon, and add the following two keys:
-   * **Privacy - Microphone Usage Description**: Set the value to `This application requires microphone access to record meeting audio.`
-   * **Privacy - Reminders Usage Description**: Set the value to `This application requires reminders access to synchronize meeting action items.`
+### 3. (Optional) Build from the command line
+```bash
+# Compile-only check (no signing needed):
+xcodebuild -project EchoScribe.xcodeproj -scheme EchoScribe -configuration Debug \
+  build CODE_SIGNING_ALLOWED=NO
+```
+In Xcode, a team-less build is signed "to run locally" automatically, which is all
+you need for local testing (TCC permissions key off the local signature).
 
-### 5. Build and Run
-* Press **`Cmd + R`** (or click the Play icon in the top left of Xcode).
-* The application will compile and launch the premium glassmorphic interface natively!
+---
+
+## 🔐 Permissions & first run
+
+Privacy usage strings are declared in `project.yml` and injected into the generated
+`Info.plist`, so the app won't crash when it touches these APIs:
+
+| Capability | Info.plist key | Why |
+|---|---|---|
+| Microphone | `NSMicrophoneUsageDescription` | `AudioRecorderManager` records via `AVAudioRecorder` |
+| Reminders (full access) | `NSRemindersFullAccessUsageDescription` | `EventKitManager` calls `requestFullAccessToReminders` on macOS 14+ |
+
+On first launch macOS will prompt for **Microphone** and **Reminders** access.
+To re-test those prompts later:
+```bash
+tccutil reset Microphone com.echoscribe.EchoScribe
+tccutil reset Reminders  com.echoscribe.EchoScribe
+```
+
+**Gemini API key:** open the in-app **Settings** (gear) and paste your key. Recording
+works without it, but "Stop & Analyze" needs it.
+
+> `SpeechTranscriptionManager` (Apple `Speech` framework) is present but not currently
+> wired into the flow, so no Speech-recognition permission is requested. If you hook it
+> up, add `NSSpeechRecognitionUsageDescription` to `project.yml`.
+
+---
+
+## 📦 Distribution note
+
+For local development, **App Sandbox** and **Hardened Runtime** are OFF (see the
+comments in `project.yml`) so permissions come straight from the normal TCC prompts.
+Before distributing (App Store / notarization), re-enable them and add the matching
+entitlements — at minimum `com.apple.security.app-sandbox`,
+`com.apple.security.device.audio-input`, and `com.apple.security.network.client`.
+
+---
+
+## 🗂 Source files
+- `EchoScribeApp.swift` — `@main` app, window, menu-bar item
+- `ContentView.swift` — main UI + `AudioLevelVisualizer`
+- `AudioRecorderManager.swift` — recording + level metering (`AudioLevelMonitor`)
+- `SpeechTranscriptionManager.swift` — on-device Speech transcription (unused for now)
+- `GeminiClient.swift` — Gemini request/response
+- `EventKitManager.swift` — Reminders integration

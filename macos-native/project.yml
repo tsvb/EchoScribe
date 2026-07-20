@@ -1,0 +1,55 @@
+name: EchoScribe
+
+# Reproducible Xcode project for the EchoScribe macOS app.
+# The .xcodeproj is generated from this spec (and git-ignored) — regenerate with:
+#   brew install xcodegen   # one-time
+#   cd macos-native && xcodegen generate
+
+options:
+  bundleIdPrefix: com.echoscribe
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+targets:
+  EchoScribe:
+    type: application
+    platform: macOS
+    sources:
+      - path: .
+        includes:
+          - "*.swift"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.echoscribe.EchoScribe
+        PRODUCT_NAME: EchoScribe
+        CODE_SIGN_STYLE: Automatic
+
+        # Info.plist is generated; privacy strings are injected via these
+        # INFOPLIST_KEY_* settings so the whole build lives in one spec.
+        GENERATE_INFOPLIST_FILE: "YES"
+        INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.productivity"
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "EchoScribe records meeting audio to transcribe and analyze it."
+        # The code calls requestFullAccessToReminders on macOS 14+, so the
+        # FULL-access key is required (the plain NSRemindersUsageDescription is
+        # not enough on modern macOS).
+        INFOPLIST_KEY_NSRemindersFullAccessUsageDescription: "EchoScribe adds meeting action items to your Reminders."
+
+        # App Sandbox and Hardened Runtime are intentionally OFF so local test
+        # builds get microphone + reminders access straight from the normal TCC
+        # prompts, with no extra entitlements. Re-enable them (with matching
+        # entitlements: audio-input, network.client, etc.) before distribution.
+
+schemes:
+  EchoScribe:
+    build:
+      targets:
+        EchoScribe: all
+    run:
+      config: Debug
