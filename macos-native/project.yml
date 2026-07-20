@@ -57,6 +57,7 @@ targets:
       - path: MeetingStore.swift
       - path: AnalysisEngine.swift
       - path: TranscriptChunker.swift
+      - path: AppleAnalysisEngine.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.echoscribe.EchoScribeTests

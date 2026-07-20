@@ -84,19 +84,55 @@ final class AppleAnalysisEngine: AnalysisEngine {
         var segments: [TranscriptSegment] = []
         var current = ""
         for paragraph in paragraphs {
-            let candidate = current.isEmpty ? paragraph : current + " " + paragraph
-            if candidate.count <= 500 {
-                current = candidate
-            } else {
-                if !current.isEmpty {
-                    segments.append(TranscriptSegment(speaker: "Speaker", text: current))
+            // Split oversized paragraphs into ≤500-char pieces
+            let pieces = splitOversizedParagraph(paragraph, maxLength: 500)
+
+            for piece in pieces {
+                let candidate = current.isEmpty ? piece : current + " " + piece
+                if candidate.count <= 500 {
+                    current = candidate
+                } else {
+                    if !current.isEmpty {
+                        segments.append(TranscriptSegment(speaker: "Speaker", text: current))
+                    }
+                    current = piece
                 }
-                current = paragraph
             }
         }
         if !current.isEmpty {
             segments.append(TranscriptSegment(speaker: "Speaker", text: current))
         }
         return segments
+    }
+
+    /// Split a paragraph into pieces of at most `maxLength` characters,
+    /// cutting at word boundaries when possible.
+    private static func splitOversizedParagraph(_ paragraph: String, maxLength: Int) -> [String] {
+        guard paragraph.count > maxLength else { return [paragraph] }
+
+        var pieces: [String] = []
+        var remaining = paragraph
+
+        while remaining.count > maxLength {
+            // Find the last space within the first maxLength characters
+            let prefix = String(remaining.prefix(maxLength))
+            if let lastSpaceIndex = prefix.lastIndex(of: " ") {
+                let piece = String(prefix[..<lastSpaceIndex]).trimmingCharacters(in: .whitespaces)
+                if !piece.isEmpty {
+                    pieces.append(piece)
+                }
+                remaining = String(remaining[prefix.index(after: lastSpaceIndex)...]).trimmingCharacters(in: .whitespaces)
+            } else {
+                // No space found; hard-cut at maxLength
+                pieces.append(prefix)
+                remaining = String(remaining.dropFirst(maxLength)).trimmingCharacters(in: .whitespaces)
+            }
+        }
+
+        if !remaining.isEmpty {
+            pieces.append(remaining)
+        }
+
+        return pieces.filter { !$0.isEmpty }
     }
 }
