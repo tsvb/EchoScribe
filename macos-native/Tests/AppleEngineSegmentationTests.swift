@@ -52,4 +52,17 @@ final class AppleEngineSegmentationTests: XCTestCase {
                      segments[0].text.contains("c"),
                      "Segment doesn't contain all input text: \(segments[0].text)")
     }
+
+    func testNoSpaceRunIsHardCutAt500() throws {
+        guard #available(macOS 26.0, *) else { throw XCTSkip("macOS 26+") }
+        let run = String(repeating: "x", count: 1300)   // no spaces anywhere
+        let segments = AppleAnalysisEngine.transcriptSegments(from: run)
+        XCTAssertGreaterThanOrEqual(segments.count, 3)
+        for segment in segments {
+            XCTAssertLessThanOrEqual(segment.text.count, 500, segment.text)
+            XCTAssertEqual(segment.speaker, "Speaker")
+        }
+        let recombined = segments.map(\.text).joined().replacingOccurrences(of: " ", with: "")
+        XCTAssertEqual(recombined, run)
+    }
 }
