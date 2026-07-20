@@ -825,8 +825,8 @@ struct ContentView: View {
     }
 
     func syncToReminders() {
-        guard let analysis = selectedMeeting?.analysis else { return }
-        eventKit.createReminders(from: analysis.actionItems, listTitle: "\(meetingTitle) Actions")
+        guard let meeting = selectedMeeting, let analysis = meeting.analysis else { return }
+        eventKit.createReminders(from: analysis.actionItems, listTitle: "\(meeting.title) Actions")
     }
 
     func copyEmailToClipboard() {
