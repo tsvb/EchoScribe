@@ -29,7 +29,27 @@ struct ContentView: View {
     @StateObject private var speechManager = SpeechTranscriptionManager()
     @StateObject private var gemini = GeminiClient()
     @StateObject private var eventKit = EventKitManager()
-    
+    @StateObject private var store = MeetingStore()
+    @StateObject private var playback = AudioPlaybackManager()
+
+    // History / selection state. The store is the single source of truth: the
+    // workspace always renders the SELECTED meeting's stored analysis.
+    @State private var selectedMeetingID: UUID?
+    @State private var analysisError: String?
+
+    // Engine preference ("auto" | "apple" | "gemini"). Apple engine lands in
+    // Phase 2 — until then availability is hardwired false.
+    @AppStorage("analysis_engine") private var enginePreferenceRaw = "auto"
+    private var appleEngineAvailable: Bool { false }   // Phase 2 replaces this
+
+    private var selectedMeeting: Meeting? {
+        store.meetings.first { $0.id == selectedMeetingID }
+    }
+
+    private var displayedError: String? {
+        analysisError ?? store.lastError
+    }
+
     // Workspace States
     @State private var selectedTab = 0 // 0: Summary, 1: Transcript, 2: Action Items, 3: Email
     @State private var stepState = "Idle"
@@ -355,7 +375,7 @@ struct ContentView: View {
                                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(borderDark, lineWidth: 1))
                                 }
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            } else if let analysis = gemini.result {
+                            } else if let meeting = selectedMeeting, let analysis = meeting.analysis {
                                 // Dynamic results view with tabs
                                 VStack(spacing: 0) {
                                     // Tab buttons header
@@ -534,7 +554,7 @@ struct ContentView: View {
                                 // Default Empty State (shows the last API error, if any —
                                 // failures used to be swallowed silently here)
                                 VStack(spacing: 16) {
-                                    if let apiError = gemini.error {
+                                    if let apiError = displayedError {
                                         VStack(alignment: .leading, spacing: 10) {
                                             HStack(spacing: 8) {
                                                 Image(systemName: "exclamationmark.octagon.fill")
@@ -543,7 +563,7 @@ struct ContentView: View {
                                                     .font(.system(size: 14, weight: .bold, design: .rounded))
                                                     .foregroundStyle(.white)
                                                 Spacer()
-                                                Button(action: { gemini.error = nil }) {
+                                                Button(action: { analysisError = nil; store.lastError = nil }) {
                                                     Image(systemName: "xmark")
                                                         .font(.system(size: 11, weight: .bold))
                                                         .foregroundStyle(.white.opacity(0.5))
@@ -721,11 +741,6 @@ struct ContentView: View {
     }
     
     func toggleRecording() {
-        if apiKey.isEmpty {
-            showSettings = true
-            return
-        }
-        
         if recorder.isRecording {
             recorder.pauseRecording()
         } else {
@@ -736,65 +751,94 @@ struct ContentView: View {
     
     func stopAndAnalyze() {
         stepState = "Processing"
-        progressText = "Compiling audio pipeline..."
-        
+        progressText = "Saving recording..."
+        analysisError = nil
+
+        let duration = recorder.elapsedSeconds
         recorder.stopRecording { url in
             guard let url = url else {
                 stepState = "Idle"
                 return
             }
+            // Audio becomes durable BEFORE any analysis: an engine failure
+            // leaves the meeting saved as "Not analyzed".
+            guard let meeting = store.create(audioAt: url, title: meetingTitle,
+                                             participants: participants,
+                                             duration: duration) else {
+                stepState = "Idle"
+                return
+            }
+            selectedMeetingID = meeting.id
+            runAnalysis(on: meeting)
+        }
+    }
 
-            progressText = "Encoding audio files to payloads..."
+    func runAnalysis(on meeting: Meeting) {
+        analysisError = nil
+        let preference = EnginePreference(rawValue: enginePreferenceRaw) ?? .auto
+        let context = EngineContext(appleAvailable: appleEngineAvailable,
+                                    hasGeminiKey: !apiKey.isEmpty)
+        let engine: AnalysisEngine
+        switch resolveEngine(preference: preference, context: context) {
+        case .gemini:
+            engine = GeminiEngine(client: gemini, apiKey: apiKey, model: selectedModel)
+        case .apple:
+            // Phase 2 instantiates AppleAnalysisEngine here.
+            analysisError = "On-device analysis isn't wired up yet."
+            stepState = "Idle"
+            return
+        case .none(let reason):
+            analysisError = reason
+            stepState = "Idle"
+            return
+        }
 
-            // Read the (potentially multi-MB) recording off the main thread so the
-            // UI doesn't freeze, then hop back to main for the Gemini request.
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    let audioData = try Data(contentsOf: url)
-
-                    DispatchQueue.main.async {
-                        progressText = "Sending multimodal payload to Gemini..."
-
-                        gemini.requestAnalysis(
-                            audioData: audioData,
-                            mimeType: "audio/mp4",
-                            apiKey: apiKey,
-                            model: selectedModel,
-                            title: meetingTitle,
-                            participants: participants
-                        ) { result in
-                            if result != nil {
-                                stepState = "Results"
-                            } else {
-                                stepState = "Idle"
-                            }
-                        }
-                    }
-                } catch {
-                    print("Failed to read audio data: \(error.localizedDescription)")
-                    DispatchQueue.main.async {
-                        stepState = "Idle"
-                    }
+        stepState = "Processing"
+        let audioURL = store.audioURL(for: meeting)
+        Task {
+            do {
+                let analysis = try await engine.analyze(
+                    audioURL: audioURL, title: meeting.title,
+                    participants: meeting.participants
+                ) { message in
+                    Task { @MainActor in progressText = message }
+                }
+                await MainActor.run {
+                    store.updateAnalysis(id: meeting.id, analysis: analysis,
+                                         engine: engine.id, model: engine.modelName)
+                    stepState = "Results"
+                }
+            } catch {
+                await MainActor.run {
+                    analysisError = error.localizedDescription
+                    stepState = "Idle"
                 }
             }
         }
     }
-    
+
+    func startNewMeeting() {
+        selectedMeetingID = nil
+        playback.stop()
+        analysisError = nil
+        stepState = "Idle"
+    }
+
     func syncToReminders() {
-        guard let analysis = gemini.result else { return }
+        guard let analysis = selectedMeeting?.analysis else { return }
         eventKit.createReminders(from: analysis.actionItems, listTitle: "\(meetingTitle) Actions")
     }
-    
+
     func copyEmailToClipboard() {
-        guard let analysis = gemini.result else { return }
+        guard let analysis = selectedMeeting?.analysis else { return }
         let text = "Subject: \(analysis.followUpEmail.subject)\n\n\(analysis.followUpEmail.body)"
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
     }
-    
+
     func openInMailApp() {
-        guard let analysis = gemini.result else { return }
+        guard let analysis = selectedMeeting?.analysis else { return }
         let subject = analysis.followUpEmail.subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let body = analysis.followUpEmail.body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         if let url = URL(string: "mailto:?subject=\(subject)&body=\(body)") {
