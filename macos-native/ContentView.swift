@@ -1,4 +1,5 @@
 import SwiftUI
+import FoundationModels
 
 struct ContentView: View {
     // API State
@@ -40,7 +41,12 @@ struct ContentView: View {
     // Engine preference ("auto" | "apple" | "gemini"). Apple engine lands in
     // Phase 2 — until then availability is hardwired false.
     @AppStorage("analysis_engine") private var enginePreferenceRaw = "auto"
-    private var appleEngineAvailable: Bool { false }   // Phase 2 replaces this
+    private var appleEngineAvailable: Bool {
+        if #available(macOS 26.0, *) {
+            return SystemLanguageModel.default.isAvailable
+        }
+        return false
+    }
 
     private var selectedMeeting: Meeting? {
         store.meetings.first { $0.id == selectedMeetingID }
@@ -542,9 +548,7 @@ struct ContentView: View {
                                     // Custom visual steps checklist
                                     VStack(alignment: .leading, spacing: 14) {
                                         StepItem(title: "Compiling raw audio stream...", active: true, done: true, colors: [successColor, accentPurple])
-                                        StepItem(title: "Sending payload to Gemini...", active: true, done: true, colors: [successColor, accentPurple])
-                                        StepItem(title: "Applying voice separation & speaker mapping...", active: true, done: true, colors: [successColor, accentPurple])
-                                        StepItem(title: "Compiling transcript, action items & email draft...", active: true, done: false, colors: [accentPurple, accentCyan])
+                                        StepItem(title: progressText.isEmpty ? "Analyzing..." : progressText, active: true, done: false, colors: [accentPurple, accentCyan])
                                     }
                                     .padding(20)
                                     .frame(width: 380)
@@ -754,7 +758,7 @@ struct ContentView: View {
                                         .font(.system(size: 22, weight: .bold, design: .rounded))
                                         .foregroundStyle(.white)
                                     
-                                    Text("Configure your API Key, list the meeting participants, and press the microphone to record. Gemini will analyze the audio to compile professional transcripts, action item checklists, and follow-up email drafts.")
+                                    Text("List the participants and press the microphone to record. Analysis runs on-device with Apple Intelligence, or through Gemini when configured — transcripts, summaries, action items, and a follow-up email draft.")
                                         .font(.system(size: 13))
                                         .multilineTextAlignment(.center)
                                         .lineSpacing(4)
@@ -799,16 +803,35 @@ struct ContentView: View {
                     Divider().background(Color.white.opacity(0.1))
                     
                     VStack(alignment: .leading, spacing: 14) {
-                        Text("Configure your private Gemini API Key to enable raw meeting transcription, dialogue speaker attribution, summaries, and action item compiling.")
+                        Text("Analysis can run fully on-device with Apple Intelligence — no key needed. A Gemini API key is optional: the Gemini engine adds speaker attribution and higher-polish summaries.")
                             .font(.system(size: 12))
                             .foregroundStyle(.white.opacity(0.6))
                             .lineSpacing(4)
                         
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Gemini API Key")
+                            Text("Analysis Engine")
                                 .font(.system(size: 11, weight: .bold))
                                 .foregroundStyle(.white.opacity(0.7))
-                            
+
+                            Picker("", selection: $enginePreferenceRaw) {
+                                Text("Auto — on-device when available").tag("auto")
+                                Text("Apple on-device (private, no key)").tag("apple")
+                                Text("Gemini cloud (best quality, speaker names)").tag("gemini")
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 4)
+                            .background(Color.white.opacity(0.04))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(borderDark, lineWidth: 1))
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Gemini API Key (optional)")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.7))
+
                             SecureField("AQ.… (from aistudio.google.com/apikey)", text: $apiKey)
                                 .textFieldStyle(.plain)
                                 .padding(10)
@@ -933,10 +956,12 @@ struct ContentView: View {
         case .gemini:
             engine = GeminiEngine(client: gemini, apiKey: apiKey, model: selectedModel)
         case .apple:
-            // Phase 2 instantiates AppleAnalysisEngine here.
-            analysisError = "On-device analysis isn't wired up yet."
-            stepState = "Idle"
-            return
+            guard #available(macOS 26.0, *) else {
+                analysisError = "On-device analysis requires macOS 26 or newer."
+                stepState = "Idle"
+                return
+            }
+            engine = AppleAnalysisEngine()
         case .none(let reason):
             analysisError = reason
             stepState = "Idle"
