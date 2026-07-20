@@ -14,6 +14,7 @@ final class AudioPlaybackManager: NSObject, ObservableObject, AVAudioPlayerDeleg
     private var timer: AnyCancellable?
 
     func togglePlayback(url: URL) {
+        lastError = nil
         if currentURL == url, let player {
             if player.isPlaying {
                 player.pause()
