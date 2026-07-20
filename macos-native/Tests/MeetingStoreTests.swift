@@ -49,7 +49,7 @@ final class MeetingStoreTests: XCTestCase {
         XCTAssertEqual(store.meetings.map(\.title), ["Second", "First"])
     }
 
-    func testCreateWithNonexistentSourceReturnsNilAndRollsBack() throws {
+    func testCreateWithNonexistentSourceReturnsNil() throws {
         let store = MeetingStore(directory: dir)
         let nonexistentURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("nonexistent-\(UUID().uuidString).m4a")
@@ -60,5 +60,29 @@ final class MeetingStoreTests: XCTestCase {
         XCTAssertNil(result, "create() should return nil when source file does not exist")
         XCTAssertTrue(store.lastError?.isEmpty == false, "lastError should be set")
         XCTAssertTrue(store.meetings.isEmpty, "meetings should be empty after failed create")
+    }
+
+    func testCreateRollsBackWhenIndexSaveFails() throws {
+        let store = MeetingStore(directory: dir)
+        let temp = try makeTempAudio()
+
+        // Block saveIndex by making meetings.json a directory instead of a file
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let indexDir = dir.appendingPathComponent("meetings.json")
+        try FileManager.default.createDirectory(at: indexDir, withIntermediateDirectories: true)
+
+        let result = store.create(audioAt: temp, title: "Will Rollback",
+                                  participants: ["Bob"], duration: 15)
+
+        XCTAssertNil(result, "create() should return nil when index save fails")
+        XCTAssertTrue(store.lastError?.isEmpty == false, "lastError should be set by saveIndex")
+        XCTAssertTrue(store.meetings.isEmpty, "meetings should be empty after rollback")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: temp.path),
+                     "audio file should be moved back to temp location")
+
+        // Verify no .m4a files remain in the store directory
+        let contents = try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
+        let audioFiles = contents.filter { $0.pathExtension == "m4a" }
+        XCTAssertTrue(audioFiles.isEmpty, "no .m4a files should remain in store after rollback")
     }
 }
