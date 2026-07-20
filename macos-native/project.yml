@@ -55,6 +55,7 @@ targets:
       - path: Tests
       - path: GeminiClient.swift
       - path: MeetingStore.swift
+      - path: AnalysisEngine.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.echoscribe.EchoScribeTests
