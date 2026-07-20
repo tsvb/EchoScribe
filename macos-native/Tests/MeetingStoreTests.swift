@@ -140,4 +140,52 @@ final class MeetingStoreTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(
             atPath: dir.appendingPathComponent("meetings.json.bak").path))
     }
+
+    func testDeleteKeepsAudioAndEntryWhenIndexSaveFails() throws {
+        let store = MeetingStore(directory: dir)
+        let m = try XCTUnwrap(store.create(audioAt: try makeTempAudio(), title: "M",
+                                           participants: [], duration: 5))
+        let audioURL = store.audioURL(for: m)
+
+        // Verify audio exists after create
+        XCTAssertTrue(FileManager.default.fileExists(atPath: audioURL.path),
+                     "audio file should exist after create")
+
+        // Break saveIndex by making meetings.json a directory instead of a file
+        let indexDir = dir.appendingPathComponent("meetings.json")
+        try? FileManager.default.removeItem(at: indexDir)
+        try FileManager.default.createDirectory(at: indexDir, withIntermediateDirectories: true)
+
+        // Clear lastError from the create operation
+        store.lastError = nil
+
+        // Call delete — it should fail to save but keep the entry and audio
+        store.delete(id: m.id)
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: audioURL.path),
+                     "audio file should still exist when index save fails")
+        XCTAssertEqual(store.meetings.count, 1, "meeting entry should still exist in memory")
+        XCTAssertTrue(store.lastError?.isEmpty == false, "lastError should be set by failed saveIndex")
+    }
+
+    func testRenameRevertsWhenIndexSaveFails() throws {
+        let store = MeetingStore(directory: dir)
+        let m = try XCTUnwrap(store.create(audioAt: try makeTempAudio(), title: "Original",
+                                           participants: [], duration: 5))
+
+        // Break saveIndex by making meetings.json a directory instead of a file
+        let indexDir = dir.appendingPathComponent("meetings.json")
+        try? FileManager.default.removeItem(at: indexDir)
+        try FileManager.default.createDirectory(at: indexDir, withIntermediateDirectories: true)
+
+        // Clear lastError from the create operation
+        store.lastError = nil
+
+        // Call rename — it should fail to save but keep the old title
+        store.rename(id: m.id, to: "Changed")
+
+        XCTAssertEqual(store.meetings[0].title, "Original",
+                      "title should revert when index save fails")
+        XCTAssertTrue(store.lastError?.isEmpty == false, "lastError should be set by failed saveIndex")
+    }
 }
