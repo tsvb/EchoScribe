@@ -46,6 +46,19 @@ targets:
         # prompts, with no extra entitlements. Re-enable them (with matching
         # entitlements: audio-input, network.client, etc.) before distribution.
 
+  # Logic tests. GeminiClient.swift is compiled directly into the bundle
+  # (no app TEST_HOST needed — keeps `xcodebuild test` simple and signing-free).
+  EchoScribeTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+      - path: GeminiClient.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.echoscribe.EchoScribeTests
+        GENERATE_INFOPLIST_FILE: "YES"
+
 schemes:
   EchoScribe:
     build:
@@ -53,3 +66,6 @@ schemes:
         EchoScribe: all
     run:
       config: Debug
+    test:
+      targets:
+        - EchoScribeTests

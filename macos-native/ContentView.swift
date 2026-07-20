@@ -3,7 +3,17 @@ import SwiftUI
 struct ContentView: View {
     // API State
     @AppStorage("gemini_api_key") private var apiKey = ""
-    @AppStorage("gemini_selected_model") private var selectedModel = "gemini-2.0-flash"
+    @AppStorage("gemini_selected_model") private var selectedModel = ContentView.defaultModel
+
+    // Live Gemini models as of July 2026. Google retires model IDs regularly
+    // (1.5: Sept 2025, 2.0: June 2026) — when it happens again, the API's 404
+    // is surfaced in the UI and points the user here.
+    static let defaultModel = "gemini-3.5-flash"
+    static let availableModels: [(id: String, label: String)] = [
+        ("gemini-3.5-flash", "Gemini 3.5 Flash (recommended)"),
+        ("gemini-3.1-flash-lite", "Gemini 3.1 Flash-Lite (fastest)"),
+        ("gemini-3.1-pro-preview", "Gemini 3.1 Pro (preview — paid key required)"),
+    ]
     @State private var showSettings = false
     @State private var apiStatusText = "Not Set"
     
@@ -334,7 +344,7 @@ struct ContentView: View {
                                     // Custom visual steps checklist
                                     VStack(alignment: .leading, spacing: 14) {
                                         StepItem(title: "Compiling raw audio stream...", active: true, done: true, colors: [successColor, accentPurple])
-                                        StepItem(title: "Sending payload to Gemini 2.0 Flash...", active: true, done: true, colors: [successColor, accentPurple])
+                                        StepItem(title: "Sending payload to Gemini...", active: true, done: true, colors: [successColor, accentPurple])
                                         StepItem(title: "Applying voice separation & speaker mapping...", active: true, done: true, colors: [successColor, accentPurple])
                                         StepItem(title: "Compiling transcript, action items & email draft...", active: true, done: false, colors: [accentPurple, accentCyan])
                                     }
@@ -521,8 +531,50 @@ struct ContentView: View {
                                 }
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                             } else {
-                                // Default Empty State
+                                // Default Empty State (shows the last API error, if any —
+                                // failures used to be swallowed silently here)
                                 VStack(spacing: 16) {
+                                    if let apiError = gemini.error {
+                                        VStack(alignment: .leading, spacing: 10) {
+                                            HStack(spacing: 8) {
+                                                Image(systemName: "exclamationmark.octagon.fill")
+                                                    .foregroundStyle(.red)
+                                                Text("Analysis Failed")
+                                                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                                                    .foregroundStyle(.white)
+                                                Spacer()
+                                                Button(action: { gemini.error = nil }) {
+                                                    Image(systemName: "xmark")
+                                                        .font(.system(size: 11, weight: .bold))
+                                                        .foregroundStyle(.white.opacity(0.5))
+                                                }
+                                                .buttonStyle(.plain)
+                                            }
+
+                                            Text(apiError)
+                                                .font(.system(size: 12))
+                                                .lineSpacing(4)
+                                                .foregroundStyle(.white.opacity(0.75))
+                                                .textSelection(.enabled)
+                                                .fixedSize(horizontal: false, vertical: true)
+
+                                            Button("Open Settings") { showSettings = true }
+                                                .font(.system(size: 12, weight: .semibold))
+                                                .padding(.horizontal, 14)
+                                                .padding(.vertical, 6)
+                                                .background(Color.red.opacity(0.15))
+                                                .foregroundStyle(.red)
+                                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                                                .buttonStyle(.plain)
+                                        }
+                                        .padding(16)
+                                        .frame(maxWidth: 460)
+                                        .background(Color.red.opacity(0.08))
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.red.opacity(0.25), lineWidth: 1))
+                                        .padding(.bottom, 12)
+                                    }
+
                                     Image(systemName: "waveform.circle.fill")
                                         .font(.system(size: 72))
                                         .foregroundStyle(LinearGradient(gradient: Gradient(colors: [accentPurple, accentCyan]), startPoint: .topLeading, endPoint: .bottomTrailing))
@@ -587,7 +639,7 @@ struct ContentView: View {
                                 .font(.system(size: 11, weight: .bold))
                                 .foregroundStyle(.white.opacity(0.7))
                             
-                            SecureField("AIzaSy...", text: $apiKey)
+                            SecureField("AQ.… (from aistudio.google.com/apikey)", text: $apiKey)
                                 .textFieldStyle(.plain)
                                 .padding(10)
                                 .background(Color.white.opacity(0.04))
@@ -602,10 +654,9 @@ struct ContentView: View {
                                 .foregroundStyle(.white.opacity(0.7))
                             
                             Picker("", selection: $selectedModel) {
-                                Text("Gemini 2.0 Flash").tag("gemini-2.0-flash")
-                                Text("Gemini 2.0 Pro Experimental").tag("gemini-2.0-pro-exp-02-05")
-                                Text("Gemini 1.5 Pro").tag("gemini-1.5-pro")
-                                Text("Gemini 1.5 Flash").tag("gemini-1.5-flash")
+                                ForEach(ContentView.availableModels, id: \.id) { model in
+                                    Text(model.label).tag(model.id)
+                                }
                             }
                             .pickerStyle(.menu)
                             .labelsHidden()
@@ -643,8 +694,15 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 1000, minHeight: 650)
+        .onAppear {
+            // Heal a stored model that Google has since retired (e.g. the old
+            // gemini-2.0-flash default) — otherwise every analysis 404s.
+            if !ContentView.availableModels.contains(where: { $0.id == selectedModel }) {
+                selectedModel = ContentView.defaultModel
+            }
+        }
     }
-    
+
     // Actions & Handlers
     
     func formatTime(_ sec: TimeInterval) -> String {
@@ -695,7 +753,7 @@ struct ContentView: View {
                     let audioData = try Data(contentsOf: url)
 
                     DispatchQueue.main.async {
-                        progressText = "Sending multimodal payload to Gemini 2.0..."
+                        progressText = "Sending multimodal payload to Gemini..."
 
                         gemini.requestAnalysis(
                             audioData: audioData,

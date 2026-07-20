@@ -40,6 +40,49 @@ class GeminiClient: ObservableObject {
     @Published var isProcessing = false
     @Published var error: String?
     @Published var result: MeetingAnalysisResponse?
+
+    /// Standard Google API error envelope, e.g.
+    /// {"error": {"code": 400, "message": "...", "status": "INVALID_ARGUMENT",
+    ///            "details": [{"@type": "...ErrorInfo", "reason": "API_KEY_INVALID", ...}]}}
+    private struct GoogleAPIError: Decodable {
+        struct Payload: Decodable {
+            struct Detail: Decodable { let reason: String? }
+            let code: Int
+            let message: String
+            let status: String?
+            let details: [Detail]?
+        }
+        let error: Payload
+    }
+
+    /// Maps a non-200 Gemini API response to an actionable, user-facing message.
+    /// (Error shapes verified against Google docs/forum reports, July 2026.)
+    static func userFacingError(statusCode: Int, body: Data, model: String) -> String {
+        let payload = (try? JSONDecoder().decode(GoogleAPIError.self, from: body))?.error
+        let reasons = payload?.details?.compactMap(\.reason) ?? []
+
+        if reasons.contains("API_KEY_INVALID") {
+            return "Google rejected the API key (\"API key not valid\"). Check that it was pasted completely, or create a new key at aistudio.google.com/apikey — current keys start with \"AQ.\" and that format is correct."
+        }
+
+        switch statusCode {
+        case 401:
+            return "Google could not authenticate this API key. Try a freshly created key from aistudio.google.com/apikey. (Google has acknowledged issues with some \"AQ.\" keys on this endpoint — if a fresh key still fails, that is likely the cause.)"
+        case 403:
+            return "This API key doesn't have permission for the Gemini API, or was blocked after being reported as leaked. Create a new key at aistudio.google.com/apikey."
+        case 404:
+            return "The model \"\(model)\" is no longer available — Google has retired it. Choose a newer model in Settings."
+        case 429:
+            return "Rate limit reached for this API key (free-tier quota). Wait a minute and retry, or switch to a lighter model in Settings."
+        default:
+            if let message = payload?.message, !message.isEmpty {
+                return "Gemini API error (HTTP \(statusCode)): \(message)"
+            }
+            let raw = String(data: body, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return "Gemini API error (HTTP \(statusCode))." + (raw.isEmpty ? "" : " \(raw.prefix(200))")
+        }
+    }
     
     func requestAnalysis(audioData: Data, mimeType: String, apiKey: String, model: String, title: String, participants: [String], completion: @escaping (MeetingAnalysisResponse?) -> Void) {
         isProcessing = true
@@ -169,9 +212,9 @@ class GeminiClient: ObservableObject {
             
             // Check status code
             if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
-                let statusMessage = String(data: data, encoding: .utf8) ?? "HTTP error \(httpResponse.statusCode)"
+                let message = GeminiClient.userFacingError(statusCode: httpResponse.statusCode, body: data, model: model)
                 DispatchQueue.main.async {
-                    self?.error = "Gemini API Error: \(statusMessage)"
+                    self?.error = message
                     completion(nil)
                 }
                 return
