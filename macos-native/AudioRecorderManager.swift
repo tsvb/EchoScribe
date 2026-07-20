@@ -30,9 +30,10 @@ class AudioRecorderManager: NSObject, ObservableObject, AVAudioRecorderDelegate 
         }
         #endif
         
-        let fileManager = FileManager.default
-        let documentDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let audioURL = documentDirectory.appendingPathComponent("EchoScribe_Record.m4a")
+        // Unique temp file per session — MeetingStore takes ownership on stop.
+        // (The old fixed ~/Documents path silently overwrote every prior recording.)
+        let audioURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("EchoScribe-\(UUID().uuidString).m4a")
         self.recordedURL = audioURL
         
         let settings: [String: Any] = [
