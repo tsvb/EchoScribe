@@ -50,6 +50,61 @@ struct ContentView: View {
         analysisError ?? store.lastError
     }
 
+    // Section: Previous meetings
+    private var meetingHistorySection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Previous Meetings (\(store.meetings.count))")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .textCase(.uppercase)
+                Spacer()
+                Button(action: startNewMeeting) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                        Text("New")
+                    }
+                    .font(.system(size: 10, weight: .semibold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.06))
+                    .foregroundStyle(.white.opacity(0.8))
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+
+            if store.meetings.isEmpty {
+                Text("Recordings you make will appear here.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.35))
+            } else {
+                ScrollView {
+                    VStack(spacing: 4) {
+                        ForEach(store.meetings) { meeting in
+                            MeetingRow(
+                                meeting: meeting,
+                                isSelected: meeting.id == selectedMeetingID,
+                                onOpen: {
+                                    selectedMeetingID = meeting.id
+                                    analysisError = nil
+                                    stepState = meeting.analysis == nil ? "Idle" : "Results"
+                                },
+                                onRename: { newTitle in store.rename(id: meeting.id, to: newTitle) },
+                                onReanalyze: { runAnalysis(on: meeting) },
+                                onDelete: {
+                                    if selectedMeetingID == meeting.id { startNewMeeting() }
+                                    store.delete(id: meeting.id)
+                                }
+                            )
+                        }
+                    }
+                }
+                .frame(maxHeight: .infinity)
+            }
+        }
+    }
+
     // Workspace States
     @State private var selectedTab = 0 // 0: Summary, 1: Transcript, 2: Action Items, 3: Email
     @State private var stepState = "Idle"
@@ -323,6 +378,10 @@ struct ContentView: View {
                                 }
                                 .frame(height: 35)
                             }
+
+                            Divider().background(Color.white.opacity(0.05))
+
+                            meetingHistorySection
                         }
                         .padding(24)
                         .frame(width: 380)
@@ -936,5 +995,87 @@ struct AudioLevelVisualizer: View {
                 monitor.append(power)
             }
         }
+    }
+}
+
+/// One compact history row: status dot, title (inline-renamable), date · duration,
+/// engine badge. Row-local rename state keeps ContentView untouched.
+struct MeetingRow: View {
+    let meeting: Meeting
+    let isSelected: Bool
+    let onOpen: () -> Void
+    let onRename: (String) -> Void
+    let onReanalyze: () -> Void
+    let onDelete: () -> Void
+
+    @State private var isRenaming = false
+    @State private var draftTitle = ""
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .short
+        return f
+    }()
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(meeting.analysis == nil ? Color.orange : Color.green)
+                .frame(width: 6, height: 6)
+
+            VStack(alignment: .leading, spacing: 2) {
+                if isRenaming {
+                    TextField("Title", text: $draftTitle)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .onSubmit {
+                            isRenaming = false
+                            onRename(draftTitle)
+                        }
+                        .onExitCommand { isRenaming = false }
+                } else {
+                    Text(meeting.title)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                }
+                Text("\(Self.dateFormatter.string(from: meeting.createdAt)) · \(Self.formatDuration(meeting.duration))")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+
+            Spacer(minLength: 4)
+
+            if let engine = meeting.engine {
+                Text(engine == "apple" ? "On-device" : "Gemini")
+                    .font(.system(size: 8, weight: .bold))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Color.white.opacity(0.07))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .clipShape(Capsule())
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(isSelected ? Color.white.opacity(0.08) : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onOpen)
+        .contextMenu {
+            Button("Rename") {
+                draftTitle = meeting.title
+                isRenaming = true
+            }
+            Button("Re-analyze") { onReanalyze() }
+            Divider()
+            Button("Delete", role: .destructive) { onDelete() }
+        }
+    }
+
+    private static func formatDuration(_ seconds: TimeInterval) -> String {
+        String(format: "%02d:%02d", Int(seconds) / 60, Int(seconds) % 60)
     }
 }
