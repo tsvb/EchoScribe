@@ -38,8 +38,8 @@ struct ContentView: View {
     @State private var selectedMeetingID: UUID?
     @State private var analysisError: String?
 
-    // Engine preference ("auto" | "apple" | "gemini"). Apple engine lands in
-    // Phase 2 — until then availability is hardwired false.
+    // Engine preference ("auto" | "apple" | "gemini"). Auto prefers the
+    // on-device Apple engine when available.
     @AppStorage("analysis_engine") private var enginePreferenceRaw = "auto"
     private var appleEngineAvailable: Bool {
         if #available(macOS 26.0, *) {
@@ -53,7 +53,7 @@ struct ContentView: View {
     }
 
     private var displayedError: String? {
-        analysisError ?? store.lastError
+        analysisError ?? store.lastError ?? playback.lastError
     }
 
     // Section: Previous meetings
@@ -92,13 +92,15 @@ struct ContentView: View {
                                 meeting: meeting,
                                 isSelected: meeting.id == selectedMeetingID,
                                 onOpen: {
+                                    guard stepState != "Processing" else { return }
                                     selectedMeetingID = meeting.id
                                     analysisError = nil
                                     stepState = meeting.analysis == nil ? "Idle" : "Results"
                                 },
                                 onRename: { newTitle in store.rename(id: meeting.id, to: newTitle) },
-                                onReanalyze: { runAnalysis(on: meeting) },
+                                onReanalyze: { if stepState != "Processing" { runAnalysis(on: meeting) } },
                                 onDelete: {
+                                    if playback.currentURL == store.audioURL(for: meeting) { playback.stop() }
                                     if selectedMeetingID == meeting.id { startNewMeeting() }
                                     store.delete(id: meeting.id)
                                 }
@@ -199,7 +201,7 @@ struct ContentView: View {
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                 Spacer()
-                Button(action: { analysisError = nil; store.lastError = nil }) {
+                Button(action: { analysisError = nil; store.lastError = nil; playback.lastError = nil }) {
                     Image(systemName: "xmark")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(.white.opacity(0.5))
@@ -234,6 +236,10 @@ struct ContentView: View {
     @State private var selectedTab = 0 // 0: Summary, 1: Transcript, 2: Action Items, 3: Email
     @State private var stepState = "Idle"
     @State private var progressText = ""
+    // Drives the processing ring's rotation. gemini.isProcessing only fires
+    // for the Gemini engine, so this local flag keeps the spinner animating
+    // for the on-device Apple engine too.
+    @State private var processingSpinner = false
     
     // Colors
     let bgDark = Color(red: 0.03, green: 0.02, blue: 0.06)
@@ -529,8 +535,8 @@ struct ContentView: View {
                                             .trim(from: 0, to: 0.6)
                                             .stroke(LinearGradient(gradient: Gradient(colors: [accentPurple, accentCyan]), startPoint: .top, endPoint: .bottom), lineWidth: 3)
                                             .frame(width: 70, height: 70)
-                                            .rotationEffect(.degrees(gemini.isProcessing ? 360 : 0))
-                                            .animation(.linear(duration: 1).repeatForever(autoreverses: false), value: gemini.isProcessing)
+                                            .rotationEffect(.degrees(processingSpinner ? 360 : 0))
+                                            .animation(.linear(duration: 1).repeatForever(autoreverses: false), value: processingSpinner)
                                         
                                         Image(systemName: "brain.headset")
                                             .font(.system(size: 24))
@@ -557,6 +563,8 @@ struct ContentView: View {
                                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(borderDark, lineWidth: 1))
                                 }
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .onAppear { processingSpinner = true }
+                                .onDisappear { processingSpinner = false }
                             } else if let meeting = selectedMeeting, let analysis = meeting.analysis {
                                 // Dynamic results view with tabs
                                 VStack(spacing: 0) {
@@ -914,6 +922,7 @@ struct ContentView: View {
     }
     
     func toggleRecording() {
+        guard stepState != "Processing" else { return }
         if recorder.isRecording {
             recorder.pauseRecording()
         } else {
