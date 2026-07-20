@@ -48,4 +48,17 @@ final class MeetingStoreTests: XCTestCase {
         _ = store.create(audioAt: try makeTempAudio(), title: "Second", participants: [], duration: 2)
         XCTAssertEqual(store.meetings.map(\.title), ["Second", "First"])
     }
+
+    func testCreateWithNonexistentSourceReturnsNilAndRollsBack() throws {
+        let store = MeetingStore(directory: dir)
+        let nonexistentURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nonexistent-\(UUID().uuidString).m4a")
+
+        let result = store.create(audioAt: nonexistentURL, title: "Should Fail",
+                                  participants: ["Alice"], duration: 10)
+
+        XCTAssertNil(result, "create() should return nil when source file does not exist")
+        XCTAssertTrue(store.lastError?.isEmpty == false, "lastError should be set")
+        XCTAssertTrue(store.meetings.isEmpty, "meetings should be empty after failed create")
+    }
 }

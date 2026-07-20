@@ -47,13 +47,18 @@ final class MeetingStore: ObservableObject {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let id = UUID()
             let fileName = "\(id.uuidString).m4a"
-            try FileManager.default.moveItem(at: tempURL,
-                                             to: directory.appendingPathComponent(fileName))
+            let storeURL = directory.appendingPathComponent(fileName)
+            try FileManager.default.moveItem(at: tempURL, to: storeURL)
             let meeting = Meeting(id: id, title: title, createdAt: Date(), duration: duration,
                                   participants: participants, engine: nil, model: nil,
                                   analysis: nil, audioFileName: fileName)
             meetings.insert(meeting, at: 0)
-            saveIndex()
+            if !saveIndex() {
+                // Rollback: remove from memory and move audio file back
+                meetings.removeAll { $0.id == id }
+                try? FileManager.default.moveItem(at: storeURL, to: tempURL)
+                return nil
+            }
             return meeting
         } catch {
             lastError = "Failed to save recording: \(error.localizedDescription)"
@@ -77,15 +82,17 @@ final class MeetingStore: ObservableObject {
         }
     }
 
-    private func saveIndex() {
+    @discardableResult private func saveIndex() -> Bool {
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let encoder = JSONEncoder()
             encoder.dateEncodingStrategy = .iso8601
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             try (try encoder.encode(meetings)).write(to: indexURL, options: .atomic)
+            return true
         } catch {
             lastError = "Failed to save meeting index: \(error.localizedDescription)"
+            return false
         }
     }
 }
