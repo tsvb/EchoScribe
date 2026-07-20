@@ -66,6 +66,29 @@ final class MeetingStore: ObservableObject {
         }
     }
 
+    func updateAnalysis(id: UUID, analysis: MeetingAnalysisResponse, engine: String, model: String) {
+        guard let idx = meetings.firstIndex(where: { $0.id == id }) else { return }
+        meetings[idx].analysis = analysis
+        meetings[idx].engine = engine
+        meetings[idx].model = model
+        saveIndex()
+    }
+
+    func rename(id: UUID, to newTitle: String) {
+        let trimmed = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let idx = meetings.firstIndex(where: { $0.id == id }) else { return }
+        meetings[idx].title = trimmed
+        saveIndex()
+    }
+
+    func delete(id: UUID) {
+        guard let idx = meetings.firstIndex(where: { $0.id == id }) else { return }
+        try? FileManager.default.removeItem(at: audioURL(for: meetings[idx]))
+        meetings.remove(at: idx)
+        saveIndex()
+    }
+
     private func load() {
         guard let data = try? Data(contentsOf: indexURL) else { return } // first launch
         let decoder = JSONDecoder()

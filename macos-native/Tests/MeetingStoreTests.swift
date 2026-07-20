@@ -85,4 +85,59 @@ final class MeetingStoreTests: XCTestCase {
         let audioFiles = contents.filter { $0.pathExtension == "m4a" }
         XCTAssertTrue(audioFiles.isEmpty, "no .m4a files should remain in store after rollback")
     }
+
+    private func sampleAnalysis() -> MeetingAnalysisResponse {
+        let json = """
+        {"transcript":[{"speaker":"Alice","text":"Ship Friday."}],
+         "summary":"We ship Friday.","sentiment":"collaborative",
+         "action_items":["Bob: write release notes"],
+         "follow_up_email":{"subject":"Recap","body":"Thanks all."}}
+        """
+        return try! JSONDecoder().decode(MeetingAnalysisResponse.self, from: Data(json.utf8))
+    }
+
+    func testUpdateAnalysisPersists() throws {
+        let store = MeetingStore(directory: dir)
+        let m = try XCTUnwrap(store.create(audioAt: try makeTempAudio(), title: "M",
+                                           participants: [], duration: 5))
+        store.updateAnalysis(id: m.id, analysis: sampleAnalysis(),
+                             engine: "gemini", model: "gemini-3.5-flash")
+
+        let reloaded = MeetingStore(directory: dir)
+        XCTAssertEqual(reloaded.meetings[0].analysis?.summary, "We ship Friday.")
+        XCTAssertEqual(reloaded.meetings[0].engine, "gemini")
+        XCTAssertEqual(reloaded.meetings[0].model, "gemini-3.5-flash")
+    }
+
+    func testRenamePersistsAndRejectsEmpty() throws {
+        let store = MeetingStore(directory: dir)
+        let m = try XCTUnwrap(store.create(audioAt: try makeTempAudio(), title: "Old",
+                                           participants: [], duration: 5))
+        store.rename(id: m.id, to: "  New Title  ")
+        store.rename(id: m.id, to: "   ")   // ignored
+        let reloaded = MeetingStore(directory: dir)
+        XCTAssertEqual(reloaded.meetings[0].title, "New Title")
+    }
+
+    func testDeleteRemovesEntryAndAudio() throws {
+        let store = MeetingStore(directory: dir)
+        let m = try XCTUnwrap(store.create(audioAt: try makeTempAudio(), title: "M",
+                                           participants: [], duration: 5))
+        let audio = store.audioURL(for: m)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: audio.path))
+        store.delete(id: m.id)
+        XCTAssertTrue(store.meetings.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audio.path))
+        XCTAssertTrue(MeetingStore(directory: dir).meetings.isEmpty)
+    }
+
+    func testCorruptedIndexBacksUpAndStartsFresh() throws {
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try Data("not json{{{".utf8).write(to: dir.appendingPathComponent("meetings.json"))
+        let store = MeetingStore(directory: dir)
+        XCTAssertTrue(store.meetings.isEmpty)
+        XCTAssertNotNil(store.lastError)
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: dir.appendingPathComponent("meetings.json.bak").path))
+    }
 }
