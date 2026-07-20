@@ -105,6 +105,125 @@ struct ContentView: View {
         }
     }
 
+    @ViewBuilder
+    private func meetingHeader(_ meeting: Meeting) -> some View {
+        let audioURL = store.audioURL(for: meeting)
+        let audioExists = FileManager.default.fileExists(atPath: audioURL.path)
+        let isThisPlaying = playback.isPlaying && playback.currentURL == audioURL
+
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(meeting.title)
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                Text(MeetingRow.headerDate(meeting.createdAt))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+
+            Spacer()
+
+            Button(action: { playback.togglePlayback(url: audioURL) }) {
+                HStack(spacing: 6) {
+                    Image(systemName: isThisPlaying ? "pause.fill" : "play.fill")
+                    Text(isThisPlaying
+                         ? MeetingRow.clock(playback.currentTime)
+                         : MeetingRow.clock(meeting.duration))
+                        .monospacedDigit()
+                }
+                .font(.system(size: 12, weight: .semibold))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.white.opacity(0.06))
+                .foregroundStyle(.white.opacity(audioExists ? 0.9 : 0.3))
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(!audioExists)
+
+            Button(action: { runAnalysis(on: meeting) }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.clockwise")
+                    Text("Re-analyze")
+                }
+                .font(.system(size: 12, weight: .semibold))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(accentPurple.opacity(0.15))
+                .foregroundStyle(.white.opacity(audioExists ? 0.9 : 0.3))
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(!audioExists || stepState == "Processing")
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 12)
+        .background(Color.black.opacity(0.25))
+    }
+
+    @ViewBuilder
+    private func notAnalyzedView(_ meeting: Meeting) -> some View {
+        VStack(spacing: 16) {
+            if let apiError = displayedError {
+                errorCard(apiError)
+            }
+            Image(systemName: "doc.badge.clock")
+                .font(.system(size: 56))
+                .foregroundStyle(.white.opacity(0.25))
+            Text("Not analyzed yet")
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+            Text("The recording is saved. Run analysis to generate the transcript, summary, action items, and follow-up email.")
+                .font(.system(size: 12))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.white.opacity(0.5))
+                .padding(.horizontal, 48)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private func errorCard(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.octagon.fill")
+                    .foregroundStyle(.red)
+                Text("Analysis Failed")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                Spacer()
+                Button(action: { analysisError = nil; store.lastError = nil }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+                .buttonStyle(.plain)
+            }
+
+            Text(message)
+                .font(.system(size: 12))
+                .lineSpacing(4)
+                .foregroundStyle(.white.opacity(0.75))
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button("Open Settings") { showSettings = true }
+                .font(.system(size: 12, weight: .semibold))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .background(Color.red.opacity(0.15))
+                .foregroundStyle(.red)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .buttonStyle(.plain)
+        }
+        .padding(16)
+        .frame(maxWidth: 460)
+        .background(Color.red.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.red.opacity(0.25), lineWidth: 1))
+    }
+
     // Workspace States
     @State private var selectedTab = 0 // 0: Summary, 1: Transcript, 2: Action Items, 3: Email
     @State private var stepState = "Idle"
@@ -437,6 +556,7 @@ struct ContentView: View {
                             } else if let meeting = selectedMeeting, let analysis = meeting.analysis {
                                 // Dynamic results view with tabs
                                 VStack(spacing: 0) {
+                                    meetingHeader(meeting)
                                     // Tab buttons header
                                     HStack(spacing: 4) {
                                         TabButton(title: "Summary", systemName: "doc.text.fill", isSelected: selectedTab == 0) { selectedTab = 0 }
@@ -609,49 +729,20 @@ struct ContentView: View {
                                     }
                                 }
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            } else if let meeting = selectedMeeting {
+                                // Saved but not analyzed (engine failed or none configured)
+                                VStack(spacing: 0) {
+                                    meetingHeader(meeting)
+                                    notAnalyzedView(meeting)
+                                }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                             } else {
                                 // Default Empty State (shows the last API error, if any —
                                 // failures used to be swallowed silently here)
                                 VStack(spacing: 16) {
                                     if let apiError = displayedError {
-                                        VStack(alignment: .leading, spacing: 10) {
-                                            HStack(spacing: 8) {
-                                                Image(systemName: "exclamationmark.octagon.fill")
-                                                    .foregroundStyle(.red)
-                                                Text("Analysis Failed")
-                                                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                                                    .foregroundStyle(.white)
-                                                Spacer()
-                                                Button(action: { analysisError = nil; store.lastError = nil }) {
-                                                    Image(systemName: "xmark")
-                                                        .font(.system(size: 11, weight: .bold))
-                                                        .foregroundStyle(.white.opacity(0.5))
-                                                }
-                                                .buttonStyle(.plain)
-                                            }
-
-                                            Text(apiError)
-                                                .font(.system(size: 12))
-                                                .lineSpacing(4)
-                                                .foregroundStyle(.white.opacity(0.75))
-                                                .textSelection(.enabled)
-                                                .fixedSize(horizontal: false, vertical: true)
-
-                                            Button("Open Settings") { showSettings = true }
-                                                .font(.system(size: 12, weight: .semibold))
-                                                .padding(.horizontal, 14)
-                                                .padding(.vertical, 6)
-                                                .background(Color.red.opacity(0.15))
-                                                .foregroundStyle(.red)
-                                                .clipShape(RoundedRectangle(cornerRadius: 6))
-                                                .buttonStyle(.plain)
-                                        }
-                                        .padding(16)
-                                        .frame(maxWidth: 460)
-                                        .background(Color.red.opacity(0.08))
-                                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.red.opacity(0.25), lineWidth: 1))
-                                        .padding(.bottom, 12)
+                                        errorCard(apiError)
+                                            .padding(.bottom, 12)
                                     }
 
                                     Image(systemName: "waveform.circle.fill")
@@ -1077,5 +1168,13 @@ struct MeetingRow: View {
 
     private static func formatDuration(_ seconds: TimeInterval) -> String {
         String(format: "%02d:%02d", Int(seconds) / 60, Int(seconds) % 60)
+    }
+
+    static func headerDate(_ date: Date) -> String {
+        dateFormatter.string(from: date)
+    }
+
+    static func clock(_ seconds: TimeInterval) -> String {
+        formatDuration(seconds)
     }
 }
