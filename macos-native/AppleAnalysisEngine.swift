@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 import Speech
+import FoundationModels
 
 /// Fully on-device analysis: SpeechTranscriber (macOS 26+) for the transcript,
 /// FoundationModels for summary/actions/email (Task 10). No API key; audio
@@ -18,8 +19,16 @@ final class AppleAnalysisEngine: AnalysisEngine {
         guard !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw AnalysisError(message: "No speech was detected in the recording.")
         }
-        // Task 10 replaces this stub with FoundationModels summarization.
-        throw AnalysisError(message: "On-device summarization not implemented yet.")
+        progress("Summarizing on device…")
+        let notes = try await Self.summarize(transcript: transcript, title: title,
+                                             participants: participants, progress: progress)
+        return MeetingAnalysisResponse(
+            transcript: Self.transcriptSegments(from: transcript),
+            summary: notes.summary,
+            sentiment: notes.sentiment,
+            actionItems: notes.actionItems,
+            followUpEmail: FollowUpEmail(subject: notes.emailSubject, body: notes.emailBody)
+        )
     }
 
     // MARK: - Transcription
@@ -72,6 +81,74 @@ final class AppleAnalysisEngine: AnalysisEngine {
         }
         throw AnalysisError(message:
             "On-device transcription doesn't support this language. Switch the analysis engine to Gemini in Settings.")
+    }
+
+    // MARK: - Summarization (FoundationModels, TN3193 map-reduce)
+
+    @Generable
+    struct MeetingNotes {
+        @Guide(description: "Executive summary of the meeting, 3-6 sentences, leading with the major takeaways")
+        var summary: String
+        @Guide(description: "Overall meeting mood as one lowercase word, e.g. collaborative, urgent, alignment, brainstorm")
+        var sentiment: String
+        @Guide(description: "Every action item, each starting with the owner's name when one is identifiable")
+        var actionItems: [String]
+        @Guide(description: "Compelling subject line for a professional follow-up email")
+        var emailSubject: String
+        @Guide(description: "Body of a professional follow-up email synthesizing the discussion, gratitude, and next steps")
+        var emailBody: String
+    }
+
+    static func summarize(transcript: String, title: String, participants: [String],
+                          progress: @escaping (String) -> Void) async throws -> MeetingNotes {
+        guard SystemLanguageModel.default.isAvailable else {
+            throw AnalysisError(message:
+                "Apple Intelligence isn't available. Enable it in System Settings, or switch the analysis engine to Gemini.")
+        }
+        // Spec §6: on context-window overflow, retry once at a smaller budget.
+        do {
+            return try await summarizePass(transcript: transcript, title: title,
+                                           participants: participants, budget: 2500,
+                                           progress: progress)
+        } catch LanguageModelSession.GenerationError.exceededContextWindowSize {
+            progress("Transcript too dense — retrying with smaller segments…")
+            return try await summarizePass(transcript: transcript, title: title,
+                                           participants: participants, budget: 1200,
+                                           progress: progress)
+        }
+    }
+
+    private static func summarizePass(transcript: String, title: String,
+                                      participants: [String], budget: Int,
+                                      progress: @escaping (String) -> Void) async throws -> MeetingNotes {
+        let who = participants.isEmpty ? "unknown" : participants.joined(separator: ", ")
+        // 2,500-token chunks leave headroom for instructions + output in the
+        // 4,096-token on-device window (TN3193); the overflow retry halves that.
+        let chunker = TranscriptChunker(counter: EstimatedTokenCounter(), budget: budget)
+        let chunks = chunker.chunk(transcript)
+
+        // Map: per-chunk notes in fresh sessions.
+        var partials: [String] = []
+        for (index, chunk) in chunks.enumerated() {
+            if chunks.count > 1 {
+                progress("Summarizing part \(index + 1)/\(chunks.count) on device…")
+            }
+            let session = LanguageModelSession(instructions:
+                "You summarize one segment of a meeting transcript. Preserve decisions, owners, deadlines, action items, and the mood. Be concise.")
+            let response = try await session.respond(to:
+                "Meeting: \(title)\nParticipants: \(who)\n\nTranscript segment:\n\(chunk)")
+            partials.append(response.content)
+        }
+
+        // Reduce: final structured notes.
+        progress("Compiling meeting notes on device…")
+        let reduceSession = LanguageModelSession(instructions:
+            "You write final meeting notes from segment summaries of a single meeting. Attribute action items to participants when possible.")
+        let combined = partials.joined(separator: "\n---\n")
+        let final = try await reduceSession.respond(
+            to: "Meeting: \(title)\nParticipants: \(who)\n\nSegment notes:\n\(combined)",
+            generating: MeetingNotes.self)
+        return final.content
     }
 
     // MARK: - Segmentation (no diarization — group into readable turns)
