@@ -4,6 +4,7 @@
   "description": "Web companion for EchoScribe: browser-based meeting recorder with Gemini-powered transcription and summaries (the primary app lives in macos-native/).",
   "main": "server.js",
   "type": "module",
+  "license": "MIT",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js"

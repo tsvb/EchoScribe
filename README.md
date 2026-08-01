@@ -54,4 +54,4 @@ docs/superpowers/ Dated design specs and implementation plans (historical record
 
 ## License
 
-Open source under the MIT License.
+Open source under the [MIT License](LICENSE).
