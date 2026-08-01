@@ -2,10 +2,15 @@
  * EchoScribe - Premium Local Meeting Assistant Core Logic
  */
 
+// Live Gemini models as of July 2026. Google retires model IDs regularly
+// (1.5: Sept 2025, 2.0: June 2026) — a retired model 404s, surfaced via toast.
+const LIVE_MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-pro-preview'];
+const DEFAULT_MODEL = 'gemini-3.5-flash';
+
 // Application State
 const state = {
   apiKey: localStorage.getItem('gemini_api_key') || '',
-  model: localStorage.getItem('gemini_model') || 'gemini-2.0-flash',
+  model: localStorage.getItem('gemini_model') || DEFAULT_MODEL,
   participants: JSON.parse(localStorage.getItem('meeting_participants')) || [],
   isRecording: false,
   isPaused: false,
@@ -19,6 +24,12 @@ const state = {
   animationId: null,
   results: null
 };
+
+// Heal a stored model that Google has since retired — otherwise every analysis 404s.
+if (!LIVE_MODELS.includes(state.model)) {
+  state.model = DEFAULT_MODEL;
+  localStorage.setItem('gemini_model', DEFAULT_MODEL);
+}
 
 // DOM Elements
 const DOM = {
@@ -393,7 +404,9 @@ async function startRecording() {
     state.isRecording = true;
     state.isPaused = false;
     
-    // Check supported types
+    // Check supported types. Note: neither audio/webm nor audio/mp4 is in
+    // Gemini's documented format list (wav/mp3/aiff/aac/ogg/flac), but both
+    // are accepted in practice for inline audio.
     let options = { mimeType: 'audio/webm' };
     if (!MediaRecorder.isTypeSupported(options.mimeType)) {
       options = { mimeType: 'audio/mp4' };
@@ -650,20 +663,21 @@ Return the response strictly in JSON format matching the schema requested below.
 
   // Call the v1beta generateContent endpoint (supports inline audio + structured JSON output)
   const model = state.model;
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      // Header keeps the key out of URLs/logs; works for current AQ.-format keys.
+      'x-goog-api-key': apiKey
     },
     body: JSON.stringify(requestBody)
   });
 
   if (!response.ok) {
     const errorJson = await response.json().catch(() => ({}));
-    const message = errorJson.error?.message || `HTTP error ${response.status}`;
-    throw new Error(`Gemini API Error: ${message}`);
+    throw new Error(userFacingApiError(response.status, errorJson, model));
   }
 
   const responseData = await response.json();
@@ -678,6 +692,29 @@ Return the response strictly in JSON format matching the schema requested below.
   } catch (err) {
     console.error('Failed to parse Gemini output text as JSON:', textResponse);
     throw new Error('API returned invalid JSON format. Please try again.');
+  }
+}
+
+// Maps a non-200 Gemini response to an actionable message (mirrors the macOS
+// app's GeminiClient.userFacingError; shapes verified against Google docs, July 2026).
+function userFacingApiError(status, errorJson, model) {
+  const reasons = (errorJson.error?.details || []).map(d => d.reason).filter(Boolean);
+  if (reasons.includes('API_KEY_INVALID')) {
+    return 'Google rejected the API key ("API key not valid"). Check it was pasted completely, or create a new key at aistudio.google.com/apikey — current keys start with "AQ." and that format is correct.';
+  }
+  switch (status) {
+    case 401:
+      return 'Google could not authenticate this API key. Try a freshly created key from aistudio.google.com/apikey.';
+    case 403:
+      return 'This API key doesn\'t have permission for the Gemini API, or was blocked after being reported as leaked. Create a new key at aistudio.google.com/apikey.';
+    case 404:
+      return `The model "${model}" is no longer available — Google has retired it. Choose a newer model in Settings.`;
+    case 429:
+      return 'Rate limit reached for this API key (free-tier quota). Wait a minute and retry, or switch to a lighter model in Settings.';
+    default:
+      return errorJson.error?.message
+        ? `Gemini API error (HTTP ${status}): ${errorJson.error.message}`
+        : `Gemini API error (HTTP ${status}).`;
   }
 }
 
