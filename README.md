@@ -138,7 +138,7 @@ It still works and tracks current Gemini models, but it's maintained at lower pr
 
 ## Contributing
 
-Issues and PRs are welcome. A few repo-specific conventions:
+Issues and PRs are welcome. Found a security issue? Please report it privately — see [SECURITY.md](SECURITY.md). A few repo-specific conventions:
 
 - The Xcode project is generated and git-ignored — see [`macos-native/README.md`](macos-native/README.md#build--run) for the generated-project workflow, the verification gates to run before claiming a change works, and the test-target rules.
 - Keep the zero-dependency style: plain `ObservableObject` managers, existing patterns over new abstractions.
