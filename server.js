@@ -26,7 +26,7 @@ const server = app.listen(PORT, () => {
   console.log('\x1b[36m%s\x1b[0m', '          🎙️   LOCAL MEETING ASSISTANT INITIALIZED  🎙️          ');
   console.log('\x1b[35m%s\x1b[0m', '=========================================================');
   console.log('\x1b[32m%s\x1b[0m', `  🚀 Server is running locally at: ${localUrl}`);
-  console.log('\x1b[33m%s\x1b[0m', '  🛡️  API requests process locally. Keys are kept private.');
+  console.log('\x1b[33m%s\x1b[0m', '  🛡️  Audio is analyzed via the Gemini API with your key; the key stays in your browser and is never sent to this server.');
   console.log('\x1b[35m%s\x1b[0m', '=========================================================');
   console.log('  Press Ctrl+C to terminate the session.');
   console.log('\x1b[35m%s\x1b[0m', '=========================================================');

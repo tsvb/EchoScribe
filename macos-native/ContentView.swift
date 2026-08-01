@@ -27,7 +27,6 @@ struct ContentView: View {
     
     // Subsystem States
     @StateObject private var recorder = AudioRecorderManager()
-    @StateObject private var speechManager = SpeechTranscriptionManager()
     @StateObject private var gemini = GeminiClient()
     @StateObject private var eventKit = EventKitManager()
     @StateObject private var store = MeetingStore()
@@ -54,6 +53,18 @@ struct ContentView: View {
 
     private var displayedError: String? {
         analysisError ?? store.lastError ?? playback.lastError
+    }
+
+    /// True when the current engine preference cannot produce an analysis
+    /// (e.g. "gemini" selected with no key, or nothing available at all).
+    private var engineUnavailable: Bool {
+        let preference = EnginePreference(rawValue: enginePreferenceRaw) ?? .auto
+        let context = EngineContext(appleAvailable: appleEngineAvailable,
+                                    hasGeminiKey: !apiKey.isEmpty)
+        if case .none = resolveEngine(preference: preference, context: context) {
+            return true
+        }
+        return false
     }
 
     // Section: Previous meetings
@@ -279,7 +290,7 @@ struct ContentView: View {
                                     .font(.system(size: 20, weight: .black, design: .rounded))
                                     .foregroundStyle(.white)
                                 
-                                Text("macOS v2.0")
+                                Text("macOS v" + (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"))
                                     .font(.system(size: 9, weight: .bold))
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
@@ -296,12 +307,13 @@ struct ContentView: View {
                     
                     Spacer()
                     
-                    // API Warning Banner Inline
-                    if apiKey.isEmpty {
+                    // Warn only when the current engine preference can't actually run —
+                    // keyless is fine when the on-device Apple engine covers "auto".
+                    if engineUnavailable {
                         HStack(spacing: 8) {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundStyle(warningColor)
-                            Text("Missing API Key")
+                            Text("No Analysis Engine")
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundStyle(warningColor)
                         }
@@ -452,7 +464,7 @@ struct ContentView: View {
                                         .clipShape(Capsule())
                                 }
                                 
-                                Text("Add who is speaking to provide vocal mapping context to Gemini.")
+                                Text("Add who is on the call so analysis can attribute action items — and, with the Gemini engine, map dialogue to speakers.")
                                     .font(.system(size: 11))
                                     .foregroundStyle(.white.opacity(0.4))
                                 
@@ -613,7 +625,7 @@ struct ContentView: View {
                                                     .foregroundStyle(.white.opacity(0.9))
                                             } else if selectedTab == 1 {
                                                 // Transcript View
-                                                Text("Speaker-Attributed Dialogue")
+                                                Text(meeting.engine == "gemini" ? "Speaker-Attributed Dialogue" : "Transcript")
                                                     .font(.system(size: 18, weight: .bold))
                                                 
                                                 VStack(alignment: .leading, spacing: 14) {
@@ -798,7 +810,7 @@ struct ContentView: View {
                 
                 VStack(spacing: 20) {
                     HStack {
-                        Text("Gemini Configuration")
+                        Text("Analysis Settings")
                             .font(.system(size: 16, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                         Spacer()

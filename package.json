@@ -1,7 +1,7 @@
 {
   "name": "meeting-assistant",
   "version": "1.0.0",
-  "description": "A premium local web-based meeting recorder, transcriber, and summarizer.",
+  "description": "Web companion for EchoScribe: browser-based meeting recorder with Gemini-powered transcription and summaries (the primary app lives in macos-native/).",
   "main": "server.js",
   "type": "module",
   "scripts": {

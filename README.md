@@ -1,55 +1,57 @@
-# 🎙️ EchoScribe — Premium Local Meeting Assistant
+# 🎙️ EchoScribe — Meeting Assistant
 
-EchoScribe is a premium, beautifully designed single-page application (SPA) that acts as a local meeting recorder, transcriber, and summarizer. It records meetings directly from your microphone, processes the audio locally using the Web Audio API, and generates highly accurate speaker-attributed dialogue transcripts, detailed executive summaries, actionable checklist items, and formal follow-up email drafts powered by Gemini 2.0.
+EchoScribe records meetings and turns them into speaker-aware transcripts, executive
+summaries, action-item checklists, and follow-up email drafts. The repository contains
+two implementations:
 
----
+| App | Where | Status |
+|---|---|---|
+| **macOS native app** (primary) | [`macos-native/`](macos-native/) | Actively developed — persistent meeting history, on-device analysis |
+| **Web app** (legacy companion) | [`public/`](public/) + [`server.js`](server.js) | Prototype; still hardcodes retired Gemini models (fix pending) |
 
-## ✨ Features
+## macOS app (start here)
 
-* **Glassmorphic UI Design**: Designed with harmonious dark-mode aesthetics, custom radial glowing background animations, and modern typographic hierarchies.
-* **Real-time Web Audio Visualizer**: Captures and routes microphone audio through a Web Audio `AnalyserNode`, drawing a dynamic neon-gradient frequency wave on a canvas.
-* **Deterministic Speaker Attribution**: Assigns unique, consistent HSL avatar colors to call participants, mapping dialogues directly to specific speakers.
-* **Structured Output Integration**: Leverages Gemini 2.0's official structured JSON schema capability to produce perfectly aligned analytical data (transcripts, checklists, email drafts).
-* **Engaging visual stepper**: Walks the user step-by-step through the audio compilation, upload, voice diarization, and synthesis processing states.
-* **Local & Private**: Processes everything client-side. Your Gemini API key is stored safely in your browser's local storage and never leaves your computer.
+A SwiftUI app with persistent meeting history and a pluggable analysis engine:
 
----
+- **Apple on-device engine** *(default on macOS 26+ with Apple Intelligence)* —
+  transcription via `SpeechTranscriber` and summarization via Apple's FoundationModels.
+  **No API key, no cost, and your audio never leaves the Mac.**
+- **Gemini engine** *(optional)* — uploads audio to Google's Gemini API for the highest
+  quality output plus per-speaker dialogue attribution. Needs an
+  [AI Studio](https://aistudio.google.com/apikey) key (current keys start with `AQ.`).
+- Every recording is saved **before** analysis runs, so a failed or skipped analysis
+  never loses audio. Past meetings can be reopened, played back, renamed, re-analyzed
+  (with whichever engine is currently selected), or deleted.
 
-## 🛠️ Architecture & Stack
+Build/run/test instructions: [`macos-native/README.md`](macos-native/README.md).
 
-* **Frontend**: Vanilla HTML5, CSS3 (Custom Variables, CSS Grid, Glassmorphic effects, Floating Glows), Vanilla JS.
-* **Backend**: Lightweight Node.js Express server to serve static assets and automatically launch the app in the browser.
-* **AI Model**: `gemini-2.0-flash` content generation API (structured JSON output schema).
+## Web app
 
----
+A single-page prototype (vanilla HTML/CSS/JS + a tiny Express static server). Audio is
+captured in the browser and sent **directly from your browser to Google's Gemini API**
+with your key — no third-party server is involved, and the key is stored only in your
+browser's localStorage. It is *not* fully local: audio and key go to Google for
+analysis. For fully on-device analysis, use the macOS app.
 
-## 🚀 Getting Started
-
-### 1. Prerequisites
-Ensure you have [Node.js](https://nodejs.org/) installed on your machine.
-
-### 2. Install Dependencies
-Clone this repository and install the Express package:
 ```bash
 npm install
+npm start          # serves http://localhost:3000 and opens your browser
 ```
 
-### 3. Run the App
-Start the local server:
-```bash
-npm start
+Then open **Settings** (gear icon), paste a Gemini API key, add participants, and
+record. ⚠️ Known issue: the model picker still lists retired Gemini models
+(`gemini-2.0-*` / `gemini-1.5-*` return 404); until it is updated to the current
+generation (`gemini-3.5-flash` and friends), analysis requests will fail.
+
+## Repository layout
+
 ```
-The server will boot up and automatically launch `http://localhost:3000` in your default browser.
+macos-native/     SwiftUI app (XcodeGen project — see its README)
+public/           Web app static assets (index.html, app.js, styles)
+server.js         Express static server for the web app
+docs/superpowers/ Dated design specs and implementation plans (historical records)
+```
 
-### 4. Configuration
-1. Open the application in your browser.
-2. Click the gear icon (**Settings**) in the top right.
-3. Paste your private Gemini API Key (get one free at [Google AI Studio](https://aistudio.google.com/)).
-4. Add the names of the meeting participants under the **Meeting Call Team** section.
-5. Tap the microphone to record, then click **Stop & Analyze** when done!
+## License
 
----
-
-## 🛡️ License
-
-This project is open-source and available under the MIT License.
+Open source under the MIT License.

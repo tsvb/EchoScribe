@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-20 (amended same day: analysis-engine abstraction + Apple on-device engine)
 **Scope:** macOS native app (`macos-native/`)
-**Status:** Approved (amendment under review)
+**Status:** Implemented — merged to main 2026-07-20 (amendment included)
 
 ## Problem
 

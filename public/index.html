@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EchoScribe | Premium Local Meeting Assistant</title>
-  <meta name="description" content="Record, transcribe, and summarize meetings locally with advanced AI speaker attribution, action item checklists, and email drafts.">
+  <meta name="description" content="Record meetings in your browser and transcribe/summarize them with the Gemini API — speaker attribution, action item checklists, and email drafts.">
   
   <!-- Modern Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -41,7 +41,7 @@
           </svg>
         </div>
         <h1>EchoScribe</h1>
-        <span class="badge">Local AI v2.0</span>
+        <span class="badge">Web App</span>
       </div>
       
       <div class="header-actions">
@@ -197,7 +197,7 @@
               </li>
               <li id="step-upload" class="processing-step">
                 <span class="step-bullet"></span>
-                <span class="step-text">Sending audio payload to Gemini 2.0 Flash...</span>
+                <span class="step-text">Sending audio payload to Gemini...</span>
               </li>
               <li id="step-diarization" class="processing-step">
                 <span class="step-bullet"></span>
@@ -346,7 +346,7 @@
       <div class="form-group">
         <label for="input-api-key" class="section-label">Gemini API Key</label>
         <div class="input-password-wrapper">
-          <input type="password" id="input-api-key" class="input-field" placeholder="AIzaSy...">
+          <input type="password" id="input-api-key" class="input-field" placeholder="AQ.… (from aistudio.google.com/apikey)">
           <button id="btn-toggle-key-visibility" class="btn-toggle-vis" title="Toggle Visibility">👁️</button>
         </div>
         <span class="input-helper-text">

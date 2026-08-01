@@ -648,7 +648,7 @@ Return the response strictly in JSON format matching the schema requested below.
     }
   };
 
-  // We will call the beta endpoint for Flash 2.0 to support full direct audio files with structured outputs
+  // Call the v1beta generateContent endpoint (supports inline audio + structured JSON output)
   const model = state.model;
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
