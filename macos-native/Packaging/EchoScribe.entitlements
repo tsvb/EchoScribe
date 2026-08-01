@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Applied by scripts/release.sh at Developer ID signing time, together
+         with the Hardened Runtime (required for notarization). Under the
+         hardened runtime these entitlements re-open access to the protected
+         resources the app uses; without them the TCC prompts never appear. -->
+
+    <!-- AudioRecorderManager records via AVAudioRecorder. -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+
+    <!-- EventKitManager writes action items to Reminders (EventKit is gated
+         by the calendars entitlement under the hardened runtime). -->
+    <key>com.apple.security.personal-information.calendars</key>
+    <true/>
+
+    <!-- App Sandbox is intentionally NOT enabled: sandboxing relocates
+         ~/Library/Application Support/EchoScribe into a container, which would
+         hide existing meeting history. Notarization only requires the
+         hardened runtime, not the sandbox. -->
+</dict>
+</plist>

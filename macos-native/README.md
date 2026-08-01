@@ -90,13 +90,31 @@ what's missing.
 
 ---
 
-## 📦 Distribution note
+## 📦 Releasing
 
-For local development, **App Sandbox** and **Hardened Runtime** are OFF (see the
-comments in `project.yml`) so permissions come straight from the normal TCC prompts.
-Before distributing (App Store / notarization), re-enable them and add the matching
-entitlements — at minimum `com.apple.security.app-sandbox`,
-`com.apple.security.device.audio-input`, and `com.apple.security.network.client`.
+`scripts/release.sh` produces a signed, notarized, stapled
+`EchoScribe-<version>.dmg` plus a stapled `EchoScribe.app` ready for
+`/Applications`. It notarizes and staples the **app first**, then packages,
+signs, notarizes, and staples the **DMG** (two round-trips), so both the
+download and a first offline launch are Gatekeeper-clean.
+
+- **Hardened Runtime** is applied at signing time with
+  [`Packaging/EchoScribe.entitlements`](Packaging/EchoScribe.entitlements)
+  (mic + Reminders access). Local dev builds stay un-hardened (see
+  `project.yml` comments).
+- **App Sandbox stays off**, deliberately: sandboxing would relocate
+  `~/Library/Application Support/EchoScribe` into a container and hide
+  existing meeting history. Notarization does not require it.
+- Prerequisites (one-time): a "Developer ID Application" certificate in the
+  login keychain and a notarytool keychain profile
+  (`xcrun notarytool store-credentials`). Defaults for both are baked into the
+  script; override with `DEVELOPER_ID_APP` / `NOTARY_PROFILE` env vars.
+- Bump `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` in `project.yml` before
+  cutting a release.
+
+The app icon is generated — regenerate
+`Assets.xcassets/AppIcon.appiconset` with `swift Packaging/IconGen.swift`
+after editing `Packaging/IconGen.swift`.
 
 ---
 

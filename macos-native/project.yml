@@ -25,11 +25,15 @@ targets:
       - path: .
         includes:
           - "*.swift"
+      - path: Assets.xcassets
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.echoscribe.EchoScribe
         PRODUCT_NAME: EchoScribe
         CODE_SIGN_STYLE: Automatic
+        # App icon lives in Assets.xcassets/AppIcon.appiconset; regenerate the
+        # PNGs with `swift Packaging/IconGen.swift`.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
 
         # Info.plist is generated; privacy strings are injected via these
         # INFOPLIST_KEY_* settings so the whole build lives in one spec.
@@ -41,10 +45,13 @@ targets:
         # not enough on modern macOS).
         INFOPLIST_KEY_NSRemindersFullAccessUsageDescription: "EchoScribe adds meeting action items to your Reminders."
 
-        # App Sandbox and Hardened Runtime are intentionally OFF so local test
-        # builds get microphone + reminders access straight from the normal TCC
-        # prompts, with no extra entitlements. Re-enable them (with matching
-        # entitlements: audio-input, network.client, etc.) before distribution.
+        # Local builds: App Sandbox and Hardened Runtime are OFF so test builds
+        # get microphone + reminders access straight from the normal TCC prompts.
+        # Distribution: scripts/release.sh applies the Hardened Runtime at
+        # Developer ID signing time using Packaging/EchoScribe.entitlements.
+        # The sandbox stays off even in releases — enabling it would relocate
+        # ~/Library/Application Support/EchoScribe into a container and hide
+        # existing meeting history.
 
   # Logic tests. GeminiClient.swift is compiled directly into the bundle
   # (no app TEST_HOST needed — keeps `xcodebuild test` simple and signing-free).

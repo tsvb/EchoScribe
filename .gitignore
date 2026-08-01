@@ -8,3 +8,6 @@ xcuserdata/
 DerivedData/
 build/
 .build/
+
+# Release artifacts (built + notarized by macos-native/scripts/release.sh)
+*.dmg
