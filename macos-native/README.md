@@ -15,7 +15,9 @@ history of every meeting, and can push action items into Apple Reminders.
   output plus per-speaker dialogue attribution. Needs an
   [AI Studio](https://aistudio.google.com/apikey) key — current keys start with
   `AQ.` (legacy `AIza` keys stop working Sept 2026). Live model IDs are kept in
-  `ContentView.availableModels` (default `gemini-3.5-flash`).
+  `ContentView.availableModels` (default `gemini-3.5-flash`). The key is stored
+  in the macOS login Keychain, migrated automatically from the old UserDefaults
+  location on first launch.
 - **Auto** picks Apple when available, else Gemini when a key is set, else shows
   an actionable error. **Recording never requires a key.**
 

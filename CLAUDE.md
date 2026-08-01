@@ -47,6 +47,8 @@ results count.
 - Recording is never gated on an API key; recordings are saved to the store on stop,
   BEFORE analysis. UI renders the selected meeting's stored analysis — never a
   client's in-memory result.
+- Gemini API key lives in the Keychain via `KeychainStore` (service
+  com.echoscribe.EchoScribe); never reintroduce the old `@AppStorage("gemini_api_key")`.
 - Design/plan history: `docs/superpowers/` (dated records — don't treat as living docs).
 
 ## Gemini API facts (verified 2026-07; do not "correct" these backwards)

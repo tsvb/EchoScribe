@@ -59,6 +59,7 @@ targets:
       - path: TranscriptChunker.swift
       - path: AppleAnalysisEngine.swift
       - path: RetryPolicy.swift
+      - path: KeychainStore.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.echoscribe.EchoScribeTests

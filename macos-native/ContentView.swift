@@ -3,7 +3,7 @@ import FoundationModels
 
 struct ContentView: View {
     // API State
-    @AppStorage("gemini_api_key") private var apiKey = ""
+    @State private var apiKey = ""
     @AppStorage("gemini_selected_model") private var selectedModel = ContentView.defaultModel
 
     // Live Gemini models as of July 2026. Google retires model IDs regularly
@@ -910,11 +910,22 @@ struct ContentView: View {
         }
         .frame(minWidth: 1000, minHeight: 650)
         .onAppear {
+            // Load the Gemini key from the Keychain, migrating the legacy
+            // UserDefaults copy once (it used to live in plaintext defaults).
+            if let legacy = UserDefaults.standard.string(forKey: "gemini_api_key"), !legacy.isEmpty {
+                KeychainStore.geminiAPIKey.save(legacy)
+                UserDefaults.standard.removeObject(forKey: "gemini_api_key")
+            }
+            apiKey = KeychainStore.geminiAPIKey.read() ?? ""
+
             // Heal a stored model that Google has since retired (e.g. the old
             // gemini-2.0-flash default) — otherwise every analysis 404s.
             if !ContentView.availableModels.contains(where: { $0.id == selectedModel }) {
                 selectedModel = ContentView.defaultModel
             }
+        }
+        .onChange(of: apiKey) {
+            KeychainStore.geminiAPIKey.save(apiKey)
         }
     }
 
