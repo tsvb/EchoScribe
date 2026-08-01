@@ -114,5 +114,6 @@ entitlements — at minimum `com.apple.security.app-sandbox`,
 - `AudioPlaybackManager.swift` — playback of stored meeting audio
 - `GeminiClient.swift` — Gemini request/response + user-facing API error mapping
 - `EventKitManager.swift` — Reminders integration
-- `Tests/` — unit tests (store, resolver, chunker, segmentation, error mapping) plus
-  a FoundationModels integration test that runs when Apple Intelligence is available
+- `Tests/` — unit tests (store, resolver, chunker, segmentation, error mapping,
+  retry policy, Keychain storage) plus a FoundationModels integration test that runs
+  when Apple Intelligence is available

@@ -9,7 +9,8 @@ EchoScribe, a meeting recorder/transcriber/summarizer. Two apps:
 - **`macos-native/` — primary.** SwiftUI, deployment target macOS 14, but the
   on-device analysis path uses macOS 26+ APIs behind `@available` guards.
 - **`public/` + `server.js` — legacy web prototype.** Browser recording + direct
-  Gemini calls. Lower priority; its model picker is known-stale.
+  Gemini calls. Lower priority; model list is current (`LIVE_MODELS` in
+  `public/app.js`, default `gemini-3.5-flash`; stored retired models heal on load).
 
 ## Build & test (macos-native)
 
@@ -20,7 +21,7 @@ renaming, or deleting any Swift file:
 ```bash
 cd macos-native
 xcodegen generate
-xcodebuild test -project EchoScribe.xcodeproj -scheme EchoScribe          # 31 tests
+xcodebuild test -project EchoScribe.xcodeproj -scheme EchoScribe          # full suite
 xcodebuild -project EchoScribe.xcodeproj -scheme EchoScribe \
   -configuration Debug build CODE_SIGNING_ALLOWED=NO                      # compile check
 ```
@@ -41,7 +42,9 @@ results count.
   meeting). All mutations save atomically and roll back on failed index writes.
   **Audio files are deleted only inside `MeetingStore.delete(id:)`.**
 - `AnalysisEngine` protocol — `AppleAnalysisEngine` (on-device: `SpeechTranscriber`
-  + FoundationModels chunked map-reduce, macOS 26+) and `GeminiEngine` (audio upload).
+  + FoundationModels chunked map-reduce, macOS 26+; context-window overflow retries
+  once at a smaller chunk budget via `withBudgetRetry` in `RetryPolicy.swift`) and
+  `GeminiEngine` (audio upload).
   `resolveEngine(preference:context:)` is pure and unit-tested; preference lives in
   `@AppStorage("analysis_engine")` (`auto`/`apple`/`gemini`).
 - Recording is never gated on an API key; recordings are saved to the store on stop,

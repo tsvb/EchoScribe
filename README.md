@@ -7,7 +7,7 @@ two implementations:
 | App | Where | Status |
 |---|---|---|
 | **macOS native app** (primary) | [`macos-native/`](macos-native/) | Actively developed — persistent meeting history, on-device analysis |
-| **Web app** (legacy companion) | [`public/`](public/) + [`server.js`](server.js) | Prototype; still hardcodes retired Gemini models (fix pending) |
+| **Web app** (legacy companion) | [`public/`](public/) + [`server.js`](server.js) | Prototype; working — uses current Gemini models (default `gemini-3.5-flash`) |
 
 ## macOS app (start here)
 
@@ -39,9 +39,9 @@ npm start          # serves http://localhost:3000 and opens your browser
 ```
 
 Then open **Settings** (gear icon), paste a Gemini API key, add participants, and
-record. ⚠️ Known issue: the model picker still lists retired Gemini models
-(`gemini-2.0-*` / `gemini-1.5-*` return 404); until it is updated to the current
-generation (`gemini-3.5-flash` and friends), analysis requests will fail.
+record. The model picker lists the current Gemini generation — `gemini-3.5-flash`
+(default), `gemini-3.1-flash-lite`, and `gemini-3.1-pro-preview` — and a previously
+stored retired model is automatically reset to the default so analysis keeps working.
 
 ## Repository layout
 

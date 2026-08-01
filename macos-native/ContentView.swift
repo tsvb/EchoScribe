@@ -16,7 +16,6 @@ struct ContentView: View {
         ("gemini-3.1-pro-preview", "Gemini 3.1 Pro (preview — paid key required)"),
     ]
     @State private var showSettings = false
-    @State private var apiStatusText = "Not Set"
     
     // Call Team State
     @State private var participants: [String] = []
