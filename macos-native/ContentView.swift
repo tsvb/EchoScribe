@@ -948,6 +948,7 @@ struct ContentView: View {
     func stopAndAnalyze() {
         stepState = "Processing"
         progressText = "Saving recording..."
+        analysisError = nil
 
         let duration = recorder.elapsedSeconds
         recorder.stopRecording { url in
