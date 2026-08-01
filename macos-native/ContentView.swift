@@ -912,9 +912,18 @@ struct ContentView: View {
         .onAppear {
             // Load the Gemini key from the Keychain, migrating the legacy
             // UserDefaults copy once (it used to live in plaintext defaults).
-            if let legacy = UserDefaults.standard.string(forKey: "gemini_api_key"), !legacy.isEmpty {
-                KeychainStore.geminiAPIKey.save(legacy)
-                UserDefaults.standard.removeObject(forKey: "gemini_api_key")
+            if let legacy = UserDefaults.standard.string(forKey: "gemini_api_key") {
+                // Migrate only into an empty Keychain, and only drop the legacy copy
+                // once the Keychain write is confirmed (never lose the only copy).
+                if legacy.isEmpty {
+                    UserDefaults.standard.removeObject(forKey: "gemini_api_key")
+                } else if KeychainStore.geminiAPIKey.read() == nil,
+                          KeychainStore.geminiAPIKey.save(legacy) {
+                    UserDefaults.standard.removeObject(forKey: "gemini_api_key")
+                } else if KeychainStore.geminiAPIKey.read() != nil {
+                    // Keychain already authoritative; stale defaults copy can go.
+                    UserDefaults.standard.removeObject(forKey: "gemini_api_key")
+                }
             }
             apiKey = KeychainStore.geminiAPIKey.read() ?? ""
 
