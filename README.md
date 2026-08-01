@@ -6,12 +6,12 @@
 
 **Record meetings on your Mac. Get transcripts, summaries, action items, and follow-up email drafts — on-device when possible.**
 
-[![Latest release](https://img.shields.io/github/v/release/tsvb/Meeting_Assist?label=release)](https://github.com/tsvb/Meeting_Assist/releases/latest)
-[![License](https://img.shields.io/github/license/tsvb/Meeting_Assist)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/tsvb/EchoScribe?label=release)](https://github.com/tsvb/EchoScribe/releases/latest)
+[![License](https://img.shields.io/github/license/tsvb/EchoScribe)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-black?logo=apple&logoColor=white)
 ![Swift](https://img.shields.io/badge/built%20with-SwiftUI-F05138?logo=swift&logoColor=white)
 
-[![Download DMG](https://img.shields.io/badge/⬇%20Download-EchoScribe.dmg-2ea44f)](https://github.com/tsvb/Meeting_Assist/releases/latest)
+[![Download DMG](https://img.shields.io/badge/⬇%20Download-EchoScribe.dmg-2ea44f)](https://github.com/tsvb/EchoScribe/releases/latest)
 
 [Install](#install) · [Analysis engines](#analysis-engines) · [How it works](#how-it-works) · [Build from source](#build-from-source) · [Contributing](#contributing)
 
@@ -36,7 +36,7 @@ Two design decisions drive everything else:
 
 ## Install
 
-**[Download the DMG from the latest release](https://github.com/tsvb/Meeting_Assist/releases/latest)**, open it, and drag **EchoScribe** into **Applications**. Both the app and the DMG are signed, notarized, and stapled — Gatekeeper-clean even on a first launch with no network.
+**[Download the DMG from the latest release](https://github.com/tsvb/EchoScribe/releases/latest)**, open it, and drag **EchoScribe** into **Applications**. Both the app and the DMG are signed, notarized, and stapled — Gatekeeper-clean even on a first launch with no network.
 
 | | Requirement |
 |---|---|
@@ -100,8 +100,8 @@ The deep technical doc — permissions/TCC details, release process, per-file so
 The Xcode project is **generated** from [`macos-native/project.yml`](macos-native/project.yml) with [XcodeGen](https://github.com/yonaskolb/XcodeGen); the `.xcodeproj` is intentionally git-ignored so the build definition never drifts out of code review.
 
 ```bash
-git clone https://github.com/tsvb/Meeting_Assist.git
-cd Meeting_Assist/macos-native
+git clone https://github.com/tsvb/EchoScribe.git
+cd EchoScribe/macos-native
 
 brew install xcodegen        # one-time
 xcodegen generate            # creates EchoScribe.xcodeproj from project.yml

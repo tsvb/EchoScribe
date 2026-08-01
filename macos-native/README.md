@@ -3,7 +3,7 @@
 This is the engineering doc for the native app. For the product overview and
 engine comparison, see the [root README](../README.md); just want the app?
 Download the signed DMG from
-[Releases](https://github.com/tsvb/Meeting_Assist/releases/latest).
+[Releases](https://github.com/tsvb/EchoScribe/releases/latest).
 
 EchoScribe is a SwiftUI meeting recorder/transcriber/summarizer with a
 pluggable analysis engine (`AnalysisEngine` protocol) and persistent meeting
@@ -123,7 +123,7 @@ download and a first offline launch are Gatekeeper-clean.
 - Bump `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` in `project.yml` before
   cutting a release.
 - Finished DMGs are published to
-  [GitHub Releases](https://github.com/tsvb/Meeting_Assist/releases/latest)
+  [GitHub Releases](https://github.com/tsvb/EchoScribe/releases/latest)
   (v1.0 is out). Built artifacts (`build/`, `*.dmg`) are git-ignored, so
   release binaries live only on the Releases page — never in the repo.
 

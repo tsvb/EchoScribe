@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Defense in depth: model output is escaped before render, and this blocks
+       script injection / exfiltration if an escape is ever missed. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://generativelanguage.googleapis.com; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>EchoScribe | Premium Local Meeting Assistant</title>
   <meta name="description" content="Record meetings in your browser and transcribe/summarize them with the Gemini API — speaker attribution, action item checklists, and email drafts.">
   

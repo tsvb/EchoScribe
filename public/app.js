@@ -265,9 +265,9 @@ function renderParticipants() {
     const initial = name.charAt(0).toUpperCase();
 
     chip.innerHTML = `
-      <span class="chip-avatar" style="background: ${avatarColor}">${initial}</span>
-      <span>${name}</span>
-      <button class="chip-remove" aria-label="Remove ${name}">&times;</button>
+      <span class="chip-avatar" style="background: ${avatarColor}">${escapeHtml(initial)}</span>
+      <span>${escapeHtml(name)}</span>
+      <button class="chip-remove" aria-label="Remove ${escapeHtml(name)}">&times;</button>
     `;
 
     chip.querySelector('.chip-remove').addEventListener('click', () => removeParticipant(name));
@@ -729,8 +729,7 @@ function renderResults() {
   DOM.summaryMeetingName.textContent = DOM.meetingTitle.value.trim() || 'Product Sync';
   DOM.summaryMeetingSentiment.textContent = data.sentiment ? `💡 ${data.sentiment}` : '💡 Productive';
 
-  // 1. Render Summary
-  // We can treat summaries as plain text or format basic markdown lines safely
+  // 1. Render Summary (formatMarkdownParagraphs escapes the model text)
   DOM.contentSummary.innerHTML = formatMarkdownParagraphs(data.summary);
 
   // 2. Render Transcript
@@ -744,10 +743,10 @@ function renderResults() {
       const color = getDeterministicColor(speech.speaker || 'Speaker');
 
       wrapper.innerHTML = `
-        <div class="speech-avatar" style="background: ${color}">${initial}</div>
+        <div class="speech-avatar" style="background: ${color}">${escapeHtml(initial)}</div>
         <div class="speech-content-card">
-          <span class="speech-speaker" style="color: ${color}">${speech.speaker || 'Unknown'}</span>
-          <span class="speech-text">${speech.text || ''}</span>
+          <span class="speech-speaker" style="color: ${color}">${escapeHtml(speech.speaker || 'Unknown')}</span>
+          <span class="speech-text">${escapeHtml(speech.text || '')}</span>
         </div>
       `;
       DOM.contentTranscript.appendChild(wrapper);
@@ -766,7 +765,7 @@ function renderResults() {
 
       checklistItem.innerHTML = `
         <div class="checkbox-custom"></div>
-        <span class="checklist-item-text">${item}</span>
+        <span class="checklist-item-text">${escapeHtml(item)}</span>
       `;
 
       checklistItem.addEventListener('click', () => {
@@ -805,6 +804,13 @@ function convertBlobToBase64(blob) {
   });
 }
 
+function escapeHtml(str) {
+  // Model output and typed names are untrusted: escape before any innerHTML use
+  return String(str ?? '').replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
 function getDeterministicColor(str) {
   // Generate deterministic HSL color based on string hash for matching avatars
   let hash = 0;
@@ -818,8 +824,10 @@ function getDeterministicColor(str) {
 
 function formatMarkdownParagraphs(text) {
   if (!text) return '';
-  // Super simple and safe markdown converter for paragraphs, bullet lines and bold headers
-  return text
+  // Simple markdown converter for paragraphs, bullet lines and bold headers.
+  // Escaping happens here, before any tags are generated — escaping the result
+  // instead would mangle the <p>/<li>/<strong> markup this produces.
+  return escapeHtml(text)
     .split('\n')
     .map(line => {
       const trimmed = line.trim();
@@ -845,7 +853,7 @@ function formatMarkdownParagraphs(text) {
 }
 
 function formatInlineBold(str) {
-  // safe regex match for bold text (**bold**)
+  // Bold text (**bold**); callers pass already-escaped text
   return str.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 }
 
