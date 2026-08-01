@@ -54,9 +54,14 @@ final class MeetingStore: ObservableObject {
                                   analysis: nil, audioFileName: fileName)
             meetings.insert(meeting, at: 0)
             if !saveIndex() {
-                // Rollback: remove from memory and move audio file back
+                // Rollback: remove from memory and move the audio file back.
                 meetings.removeAll { $0.id == id }
-                try? FileManager.default.moveItem(at: storeURL, to: tempURL)
+                do {
+                    try FileManager.default.moveItem(at: storeURL, to: tempURL)
+                } catch {
+                    // Never delete audio: leave it in the store dir and say so.
+                    lastError = (lastError ?? "") + " The recording file was kept at \(storeURL.path)."
+                }
                 return nil
             }
             return meeting
@@ -67,24 +72,31 @@ final class MeetingStore: ObservableObject {
     }
 
     func updateAnalysis(id: UUID, analysis: MeetingAnalysisResponse, engine: String, model: String) {
-        guard let idx = meetings.firstIndex(where: { $0.id == id }) else { return }
-        let previous = meetings[idx]
-        meetings[idx].analysis = analysis
-        meetings[idx].engine = engine
-        meetings[idx].model = model
-        if !saveIndex() {
-            meetings[idx] = previous
+        mutate(id: id) { meeting in
+            meeting.analysis = analysis
+            meeting.engine = engine
+            meeting.model = model
         }
     }
 
     func rename(id: UUID, to newTitle: String) {
         let trimmed = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty,
-              let idx = meetings.firstIndex(where: { $0.id == id }) else { return }
-        let previous = meetings[idx].title
-        meetings[idx].title = trimmed
+        guard !trimmed.isEmpty else { return }
+        mutate(id: id) { meeting in
+            meeting.title = trimmed
+        }
+    }
+
+    /// Shared by updateAnalysis and rename: looks up the meeting, captures its
+    /// previous value, applies `change` in place, persists, and reverts the
+    /// in-memory copy if saveIndex fails. delete() has a different revert
+    /// shape (re-insert at index) so it isn't routed through this.
+    private func mutate(id: UUID, _ change: (inout Meeting) -> Void) {
+        guard let idx = meetings.firstIndex(where: { $0.id == id }) else { return }
+        let previous = meetings[idx]
+        change(&meetings[idx])
         if !saveIndex() {
-            meetings[idx].title = previous
+            meetings[idx] = previous
         }
     }
 

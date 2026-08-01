@@ -16,7 +16,7 @@ final class TranscriptChunkerTests: XCTestCase {
         XCTAssertTrue(chunker.chunk("   \n  ").isEmpty)
     }
 
-    func testParagraphsPackGreedylyUnderBudget() {
+    func testParagraphsPackGreedilyUnderBudget() {
         let text = "aaaa\nbbbb\ncccc\ndddd"   // 4-char paragraphs
         let chunker = TranscriptChunker(counter: CharCounter(), budget: 9)
         let chunks = chunker.chunk(text)
@@ -48,5 +48,14 @@ final class TranscriptChunkerTests: XCTestCase {
         let chunks = chunker.chunk(text)
         for chunk in chunks { XCTAssertLessThanOrEqual(chunk.count, 10) }
         XCTAssertEqual(chunks.joined(), text)
+    }
+
+    func testCRLFInputCarriesNoCarriageReturns() {
+        let chunker = TranscriptChunker(counter: CharCounter(), budget: 100)
+        let chunks = chunker.chunk("alpha\r\nbeta\r\ngamma")
+        XCTAssertEqual(chunks.count, 1)
+        for chunk in chunks {
+            XCTAssertFalse(chunk.contains("\r"), chunk)
+        }
     }
 }

@@ -2,20 +2,28 @@ import XCTest
 
 final class MeetingStoreTests: XCTestCase {
     private var dir: URL!
+    // Kept OUTSIDE `dir`: tests assert on the store dir's .m4a contents, so
+    // pre-move source files must live somewhere else. Cleaned up in
+    // tearDownWithError so a mid-test failure never leaks files into the
+    // shared OS temp root.
+    private var scratch: URL!
 
     override func setUpWithError() throws {
         dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("MeetingStoreTests-\(UUID().uuidString)", isDirectory: true)
+        scratch = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MeetingStoreTests-scratch-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
     }
 
     override func tearDownWithError() throws {
         try? FileManager.default.removeItem(at: dir)
+        try? FileManager.default.removeItem(at: scratch)
     }
 
-    /// Writes a fake .m4a into a scratch location and returns its URL.
+    /// Writes a fake .m4a into the scratch location and returns its URL.
     private func makeTempAudio() throws -> URL {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("rec-\(UUID().uuidString).m4a")
+        let url = scratch.appendingPathComponent("rec-\(UUID().uuidString).m4a")
         try Data("fake-audio".utf8).write(to: url)
         return url
     }
@@ -186,6 +194,28 @@ final class MeetingStoreTests: XCTestCase {
 
         XCTAssertEqual(store.meetings[0].title, "Original",
                       "title should revert when index save fails")
+        XCTAssertTrue(store.lastError?.isEmpty == false, "lastError should be set by failed saveIndex")
+    }
+
+    func testUpdateAnalysisRevertsWhenIndexSaveFails() throws {
+        let store = MeetingStore(directory: dir)
+        let m = try XCTUnwrap(store.create(audioAt: try makeTempAudio(), title: "M",
+                                           participants: [], duration: 5))
+
+        // Break saveIndex by making meetings.json a directory instead of a file
+        let indexDir = dir.appendingPathComponent("meetings.json")
+        try? FileManager.default.removeItem(at: indexDir)
+        try FileManager.default.createDirectory(at: indexDir, withIntermediateDirectories: true)
+
+        // Clear lastError from the create operation
+        store.lastError = nil
+
+        // Call updateAnalysis — it should fail to save but revert the in-memory change
+        store.updateAnalysis(id: m.id, analysis: sampleAnalysis(), engine: "gemini",
+                             model: "gemini-3.5-flash")
+
+        XCTAssertNil(store.meetings[0].analysis, "analysis should revert when index save fails")
+        XCTAssertNil(store.meetings[0].engine, "engine should revert when index save fails")
         XCTAssertTrue(store.lastError?.isEmpty == false, "lastError should be set by failed saveIndex")
     }
 }

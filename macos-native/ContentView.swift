@@ -146,10 +146,8 @@ struct ContentView: View {
             Button(action: { playback.togglePlayback(url: audioURL) }) {
                 HStack(spacing: 6) {
                     Image(systemName: isThisPlaying ? "pause.fill" : "play.fill")
-                    Text(isThisPlaying
-                         ? MeetingRow.clock(playback.currentTime)
-                         : MeetingRow.clock(meeting.duration))
-                        .monospacedDigit()
+                    PlaybackTimeLabel(clock: playback.clock, isActive: isThisPlaying,
+                                      fallback: meeting.duration)
                 }
                 .font(.system(size: 12, weight: .semibold))
                 .padding(.horizontal, 12)
@@ -950,7 +948,6 @@ struct ContentView: View {
     func stopAndAnalyze() {
         stepState = "Processing"
         progressText = "Saving recording..."
-        analysisError = nil
 
         let duration = recorder.elapsedSeconds
         recorder.stopRecording { url in
@@ -1001,7 +998,9 @@ struct ContentView: View {
                     audioURL: audioURL, title: meeting.title,
                     participants: meeting.participants
                 ) { message in
-                    Task { @MainActor in progressText = message }
+                    // FIFO on the main queue — Task { @MainActor } would let
+                    // out-of-order progress messages race each other.
+                    DispatchQueue.main.async { progressText = message }
                 }
                 await MainActor.run {
                     store.updateAnalysis(id: meeting.id, analysis: analysis,
@@ -1140,6 +1139,18 @@ struct AudioLevelVisualizer: View {
     }
 }
 
+/// Observes the playback clock so 0.5s ticks re-render only this label,
+/// not the whole window (same isolation pattern as AudioLevelVisualizer).
+struct PlaybackTimeLabel: View {
+    @ObservedObject var clock: AudioPlaybackManager.Clock
+    let isActive: Bool          // this meeting is the one playing
+    let fallback: TimeInterval  // meeting duration shown when not playing
+    var body: some View {
+        Text(MeetingRow.clock(isActive ? clock.currentTime : fallback))
+            .monospacedDigit()
+    }
+}
+
 /// One compact history row: status dot, title (inline-renamable), date · duration,
 /// engine badge. Row-local rename state keeps ContentView untouched.
 struct MeetingRow: View {
@@ -1152,6 +1163,7 @@ struct MeetingRow: View {
 
     @State private var isRenaming = false
     @State private var draftTitle = ""
+    @FocusState private var renameFieldFocused: Bool
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -1172,11 +1184,27 @@ struct MeetingRow: View {
                         .textFieldStyle(.plain)
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.white)
+                        .focused($renameFieldFocused)
                         .onSubmit {
                             isRenaming = false
                             onRename(draftTitle)
                         }
-                        .onExitCommand { isRenaming = false }
+                        .onExitCommand {
+                            // Reset the draft before dropping isRenaming so the
+                            // onChange-driven commit below (which fires when
+                            // focus resigns) sees the unchanged title — escape
+                            // cancels instead of renaming.
+                            draftTitle = meeting.title
+                            isRenaming = false
+                        }
+                        .onChange(of: renameFieldFocused) {
+                            if !renameFieldFocused && isRenaming {
+                                // Clicking away from the field: commit instead
+                                // of leaving it stuck in edit mode.
+                                isRenaming = false
+                                onRename(draftTitle)
+                            }
+                        }
                 } else {
                     Text(meeting.title)
                         .font(.system(size: 12, weight: .semibold))
@@ -1210,6 +1238,7 @@ struct MeetingRow: View {
             Button("Rename") {
                 draftTitle = meeting.title
                 isRenaming = true
+                renameFieldFocused = true
             }
             Button("Re-analyze") { onReanalyze() }
             Divider()

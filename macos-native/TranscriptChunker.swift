@@ -17,9 +17,13 @@ struct TranscriptChunker {
     let counter: TokenCounting
     let budget: Int
 
+    /// `budget` guarded against degenerate (<=0) values so a misconfigured
+    /// caller can't make every slicing loop below spin forever on empty output.
+    private var safeBudget: Int { max(1, budget) }
+
     func chunk(_ text: String) -> [String] {
         let paragraphs = text.split(separator: "\n", omittingEmptySubsequences: true)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
         var chunks: [String] = []
@@ -27,11 +31,11 @@ struct TranscriptChunker {
 
         for paragraph in paragraphs {
             let candidate = current.isEmpty ? paragraph : current + "\n" + paragraph
-            if counter.tokenCount(for: candidate) <= budget {
+            if counter.tokenCount(for: candidate) <= safeBudget {
                 current = candidate
             } else {
                 if !current.isEmpty { chunks.append(current); current = "" }
-                if counter.tokenCount(for: paragraph) <= budget {
+                if counter.tokenCount(for: paragraph) <= safeBudget {
                     current = paragraph
                 } else {
                     chunks.append(contentsOf: splitOversized(paragraph))
@@ -42,19 +46,25 @@ struct TranscriptChunker {
         return chunks
     }
 
+    // NOTE: splitOversized/hardSlices are O(n^2) in the worst case (a single
+    // token run longer than the budget forces repeated tokenCount() calls
+    // over a growing slice). Accepted: production budgets are 1200+ tokens,
+    // so pathological single-token runs long enough for this to matter don't
+    // occur in practice.
+
     /// Word-boundary packing; falls back to fixed-size character slices for a
     /// single "word" longer than the budget.
     private func splitOversized(_ paragraph: String) -> [String] {
         var chunks: [String] = []
         var current = ""
         for word in paragraph.split(separator: " ").map(String.init) {
-            if counter.tokenCount(for: word) > budget {
+            if counter.tokenCount(for: word) > safeBudget {
                 if !current.isEmpty { chunks.append(current); current = "" }
                 chunks.append(contentsOf: hardSlices(word))
                 continue
             }
             let candidate = current.isEmpty ? word : current + " " + word
-            if counter.tokenCount(for: candidate) <= budget {
+            if counter.tokenCount(for: candidate) <= safeBudget {
                 current = candidate
             } else {
                 chunks.append(current)
@@ -69,7 +79,7 @@ struct TranscriptChunker {
         var slices: [String] = []
         var slice = ""
         for ch in word {
-            if counter.tokenCount(for: slice + String(ch)) > budget {
+            if !slice.isEmpty && counter.tokenCount(for: slice + String(ch)) > safeBudget {
                 slices.append(slice)
                 slice = String(ch)
             } else {

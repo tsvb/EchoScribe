@@ -43,7 +43,9 @@ final class AppleAnalysisEngine: AnalysisEngine {
 
         // One-time locale model download into system storage.
         let installed = await SpeechTranscriber.installedLocales
-        if !installed.contains(where: { $0.identifier(.bcp47) == locale.identifier(.bcp47) }) {
+        if !installed.contains(where: {
+            $0.identifier(.bcp47).lowercased() == locale.identifier(.bcp47).lowercased()
+        }) {
             progress("Downloading on-device speech model…")
             if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
                 try await request.downloadAndInstall()
@@ -60,10 +62,17 @@ final class AppleAnalysisEngine: AnalysisEngine {
         }
 
         let audioFile = try AVAudioFile(forReading: url)
-        if let lastSampleTime = try await analyzer.analyzeSequence(from: audioFile) {
-            try await analyzer.finalizeAndFinish(through: lastSampleTime)
-        } else {
+        // Make sure the analyzer is always finished, even if analyzeSequence
+        // throws partway through — otherwise it's left dangling.
+        do {
+            if let lastSampleTime = try await analyzer.analyzeSequence(from: audioFile) {
+                try await analyzer.finalizeAndFinish(through: lastSampleTime)
+            } else {
+                await analyzer.cancelAndFinishNow()
+            }
+        } catch {
             await analyzer.cancelAndFinishNow()
+            throw error
         }
 
         return try await collected
@@ -74,9 +83,9 @@ final class AppleAnalysisEngine: AnalysisEngine {
         let supported = await SpeechTranscriber.supportedLocales
         let current = Locale.current
         if let match = supported.first(where: {
-            $0.identifier(.bcp47) == current.identifier(.bcp47)
+            $0.identifier(.bcp47).lowercased() == current.identifier(.bcp47).lowercased()
         }) { return match }
-        if let english = supported.first(where: { $0.identifier(.bcp47) == "en-US" }) {
+        if let english = supported.first(where: { $0.identifier(.bcp47).lowercased() == "en-us" }) {
             return english
         }
         throw AnalysisError(message:
@@ -105,16 +114,20 @@ final class AppleAnalysisEngine: AnalysisEngine {
             throw AnalysisError(message:
                 "Apple Intelligence isn't available. Enable it in System Settings, or switch the analysis engine to Gemini.")
         }
-        // Spec §6: on context-window overflow, retry once at a smaller budget.
-        do {
-            return try await summarizePass(transcript: transcript, title: title,
-                                           participants: participants, budget: 2500,
-                                           progress: progress)
-        } catch LanguageModelSession.GenerationError.exceededContextWindowSize {
+        // Spec §6: on context-window overflow, retry once at a smaller budget
+        // (TN3193). withBudgetRetry has no notion of progress reporting, so
+        // isRetryable is the seam: it emits the "retrying" message as a side
+        // effect before signalling that a smaller budget should be tried.
+        return try await withBudgetRetry(budgets: [2500, 1200], isRetryable: { error in
+            guard case LanguageModelSession.GenerationError.exceededContextWindowSize = error else {
+                return false
+            }
             progress("Transcript too dense — retrying with smaller segments…")
-            return try await summarizePass(transcript: transcript, title: title,
-                                           participants: participants, budget: 1200,
-                                           progress: progress)
+            return true
+        }) { budget in
+            try await summarizePass(transcript: transcript, title: title,
+                                    participants: participants, budget: budget,
+                                    progress: progress)
         }
     }
 
@@ -155,7 +168,7 @@ final class AppleAnalysisEngine: AnalysisEngine {
 
     static func transcriptSegments(from text: String) -> [TranscriptSegment] {
         let paragraphs = text.split(separator: "\n", omittingEmptySubsequences: true)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
         var segments: [TranscriptSegment] = []
@@ -191,18 +204,21 @@ final class AppleAnalysisEngine: AnalysisEngine {
         var remaining = paragraph
 
         while remaining.count > maxLength {
-            // Find the last space within the first maxLength characters
-            let prefix = String(remaining.prefix(maxLength))
-            if let lastSpaceIndex = prefix.lastIndex(of: " ") {
-                let piece = String(prefix[..<lastSpaceIndex]).trimmingCharacters(in: .whitespaces)
+            // Find the last space within the first maxLength characters, using
+            // indices computed directly on `remaining` — not on a separately
+            // copied prefix String, whose indices aren't a documented-safe
+            // way to subscript back into `remaining`.
+            let cutoff = remaining.index(remaining.startIndex, offsetBy: maxLength)
+            if let lastSpaceIndex = remaining[..<cutoff].lastIndex(of: " ") {
+                let piece = String(remaining[..<lastSpaceIndex]).trimmingCharacters(in: .whitespaces)
                 if !piece.isEmpty {
                     pieces.append(piece)
                 }
-                remaining = String(remaining[prefix.index(after: lastSpaceIndex)...]).trimmingCharacters(in: .whitespaces)
+                remaining = String(remaining[remaining.index(after: lastSpaceIndex)...]).trimmingCharacters(in: .whitespaces)
             } else {
                 // No space found; hard-cut at maxLength
-                pieces.append(prefix)
-                remaining = String(remaining.dropFirst(maxLength)).trimmingCharacters(in: .whitespaces)
+                pieces.append(String(remaining[..<cutoff]))
+                remaining = String(remaining[cutoff...]).trimmingCharacters(in: .whitespaces)
             }
         }
 
