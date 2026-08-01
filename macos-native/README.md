@@ -53,7 +53,7 @@ settings in `project.yml`.
 
 ### 3. Build & test from the command line
 ```bash
-# Run the unit-test suite (31 tests; must end ** TEST SUCCEEDED **):
+# Run the full unit-test suite (must end ** TEST SUCCEEDED **):
 xcodebuild test -project EchoScribe.xcodeproj -scheme EchoScribe
 
 # Compile-only check (no signing needed):
@@ -108,6 +108,8 @@ entitlements — at minimum `com.apple.security.app-sandbox`,
 - `AnalysisEngine.swift` — engine protocol, `GeminiEngine` adapter, Auto resolution
 - `AppleAnalysisEngine.swift` — on-device transcription + summarization (macOS 26+)
 - `TranscriptChunker.swift` — token-budget chunking for the on-device model window
+- `RetryPolicy.swift` — budgeted retry helper (context-window overflow fallback)
+- `KeychainStore.swift` — Keychain storage for the Gemini API key
 - `AudioRecorderManager.swift` — recording + level metering (`AudioLevelMonitor`)
 - `AudioPlaybackManager.swift` — playback of stored meeting audio
 - `GeminiClient.swift` — Gemini request/response + user-facing API error mapping
