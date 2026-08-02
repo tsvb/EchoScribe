@@ -58,27 +58,52 @@ results count.
   **Audio files are deleted only inside `MeetingStore.delete(id:)`.**
 - `AnalysisEngine` protocol — `AppleAnalysisEngine` (on-device: `SpeechTranscriber`
   + FoundationModels chunked map-reduce, macOS 26+; context-window overflow retries
-  once at a smaller chunk budget via `withBudgetRetry` in `RetryPolicy.swift`) and
-  `GeminiEngine` (audio upload).
+  once at a smaller chunk budget via `withBudgetRetry` in `RetryPolicy.swift`),
+  `GeminiEngine` (audio upload), and `OpenAIEngine` (two-step: diarized
+  transcription, then chat analysis; `OpenAIClient` is a stateless namespace with
+  pure, unit-tested request builders/decoders/error mapping).
+- Cloud providers are rows in the `CloudProviders` registry (`AnalysisEngine.swift`):
+  key field, model picker, engine-picker row, history badge, auto-order, and
+  stored-model healing all derive from it. Adding a provider = one registry row
+  + a `KeychainStore` static + client/engine files (+ `project.yml` test sources).
   `resolveEngine(preference:context:)` is pure and unit-tested; preference lives in
-  `@AppStorage("analysis_engine")` (`auto`/`apple`/`gemini`).
+  `@AppStorage("analysis_engine")` (`auto`/`apple` or a provider id like
+  `gemini`/`openai`; unknown ids self-heal through the auto path).
 - Recording is never gated on an API key; recordings are saved to the store on stop,
   BEFORE analysis. UI renders the selected meeting's stored analysis — never a
   client's in-memory result.
-- Gemini API key lives in the Keychain via `KeychainStore` (service
-  com.echoscribe.EchoScribe); never reintroduce the old `@AppStorage("gemini_api_key")`.
+- Cloud API keys (Gemini `gemini_api_key`, OpenAI `openai_api_key`) live in the
+  Keychain via `KeychainStore` (service com.echoscribe.EchoScribe); never
+  reintroduce the old `@AppStorage("gemini_api_key")` pattern for any provider.
 - Design/plan history: `docs/superpowers/` (dated records — don't treat as living docs).
 
 ## Gemini API facts (verified 2026-07; do not "correct" these backwards)
 
 - Current API keys start with **`AQ.`** (AI Studio only issues these now; legacy
   `AIza` keys die Sept 2026). Never tell users to get an `AIza` key.
-- Live models are listed in `ContentView.availableModels` (default
-  `gemini-3.5-flash`). `gemini-1.5-*` and `gemini-2.0-*` are retired and 404.
+- Live models are listed in the `CloudProviders.gemini` registry row in
+  `AnalysisEngine.swift` (default `gemini-3.5-flash`; the web app keeps its own
+  `LIVE_MODELS` copy). `gemini-1.5-*` and `gemini-2.0-*` are retired and 404.
   Google churns model IDs ~yearly — on a "model not available" bug, check
   ai.google.dev/gemini-api/docs/deprecations before debugging app code.
 - Key goes in the `x-goog-api-key` header, not the URL. Error envelope parsing
   lives in `GeminiClient.userFacingError` (unit-tested).
+
+## OpenAI API facts (verified 2026-08; do not "correct" these backwards)
+
+- Keys start **`sk-`** / **`sk-proj-`**; sent as an `Authorization: Bearer` header.
+- Two-step pipeline: `POST /v1/audio/transcriptions` (multipart, model
+  `gpt-4o-transcribe-diarize`, `response_format=diarized_json`,
+  `chunking_strategy=auto`, 25 MB file cap) → `POST /v1/chat/completions` with a
+  strict `json_schema` response_format. Chat models live in the
+  `CloudProviders.openai` registry row (default `gpt-5.6-terra`). OpenAI retires
+  chat model ids regularly (gpt-4o/4.1/5/5.1 are all gone) — stored ids heal on
+  load, same as Gemini.
+- The transcription model is a fixed constant (`OpenAIClient.transcriptionModel`),
+  deliberately not user-selectable; if OpenAI retires it, the fix is an app update.
+- Error envelope parsing lives in `OpenAIClient.userFacingError` (unit-tested).
+  Quota exhaustion arrives as HTTP 429 with code `insufficient_quota` — it must
+  be distinguished from plain rate limiting.
 
 ## Conventions
 
