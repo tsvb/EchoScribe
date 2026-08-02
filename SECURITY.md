@@ -21,7 +21,7 @@ version or commit, what an attacker gains, and the smallest set of steps that sh
 
 | Version | Supported |
 |---|---|
-| 1.0 (latest release) | ✅ |
+| 2026.8 (latest release) | ✅ |
 | Older / unreleased builds from `main` | Best effort |
 
 Fixes land on `main` and go out in the next signed release. There are no long-term
