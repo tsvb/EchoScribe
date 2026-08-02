@@ -49,6 +49,32 @@ final class OpenAIClientErrorTests: XCTestCase {
         XCTAssertFalse(msg.localizedCaseInsensitiveContains("rate limit"), msg)
     }
 
+    func testBillingCodes429MapToQuotaNotRateLimit() {
+        // Current docs (Aug 2026) surface quota exhaustion via specific
+        // billing codes; insufficient_quota moved to the `type` field.
+        for code in ["credit_balance_exhausted", "organization_spend_limit_exceeded",
+                     "project_spend_limit_exceeded", "organization_usage_limit_exceeded"] {
+            let body = envelope(message: "Billing hard limit reached.", code: code)
+            let msg = OpenAIClient.userFacingError(statusCode: 429, body: body, model: "gpt-4o")
+            XCTAssertTrue(msg.localizedCaseInsensitiveContains("quota"), "\(code): \(msg)")
+            XCTAssertFalse(msg.localizedCaseInsensitiveContains("rate limit"), "\(code): \(msg)")
+        }
+    }
+
+    func testInsufficientQuotaTypeWithUnknownCodeStillMapsToQuota() {
+        let body = envelope(message: "You exceeded your current quota.", type: "insufficient_quota", code: "some_future_billing_code")
+        let msg = OpenAIClient.userFacingError(statusCode: 429, body: body, model: "gpt-4o")
+        XCTAssertTrue(msg.localizedCaseInsensitiveContains("quota"), msg)
+        XCTAssertFalse(msg.localizedCaseInsensitiveContains("rate limit"), msg)
+    }
+
+    func testInsufficientQuotaTypeWithNoCodeStillMapsToQuota() {
+        let body = envelope(message: "You exceeded your current quota.", type: "insufficient_quota")
+        let msg = OpenAIClient.userFacingError(statusCode: 429, body: body, model: "gpt-4o")
+        XCTAssertTrue(msg.localizedCaseInsensitiveContains("quota"), msg)
+        XCTAssertFalse(msg.localizedCaseInsensitiveContains("rate limit"), msg)
+    }
+
     func testBare429MentionsRateLimit() {
         let body = envelope(message: "Rate limit reached for requests.", type: "requests")
         let msg = OpenAIClient.userFacingError(statusCode: 429, body: body, model: "gpt-4o")

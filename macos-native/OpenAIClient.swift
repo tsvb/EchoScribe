@@ -210,8 +210,17 @@ enum OpenAIClient {
         if payload?.code == "invalid_api_key" || statusCode == 401 {
             return "OpenAI rejected the API key. Check that it was pasted completely, or create a new key at platform.openai.com/api-keys — keys start with \"sk-\" or \"sk-proj-\"."
         }
-        if payload?.code == "insufficient_quota" {
-            return "This OpenAI account is out of credit (insufficient_quota). Add billing at platform.openai.com, or switch engines in Settings."
+        // Quota exhaustion arrives as HTTP 429 like plain rate limiting, but the
+        // envelope differs: legacy responses put insufficient_quota in `code`;
+        // current docs (Aug 2026) keep it in `type` and use specific billing
+        // codes for the cause.
+        let billingCodes: Set<String> = [
+            "insufficient_quota", "credit_balance_exhausted",
+            "organization_spend_limit_exceeded", "project_spend_limit_exceeded",
+            "organization_usage_limit_exceeded",
+        ]
+        if payload?.type == "insufficient_quota" || billingCodes.contains(payload?.code ?? "") {
+            return "This OpenAI account is out of quota (\(payload?.code ?? "insufficient_quota")). Check billing and spend limits at platform.openai.com, or switch engines in Settings."
         }
         if statusCode == 404 || payload?.code == "model_not_found" {
             if model == transcriptionModel {
