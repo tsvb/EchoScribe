@@ -16,11 +16,18 @@ covered in the root README; the specifics that matter for working on this code:
   Apple TN3193 (`TranscriptChunker` + `RetryPolicy` for context-window
   overflow fallback).
 - **Gemini engine** (`GeminiEngine`) — audio upload to Google's Gemini API.
-  Live model IDs are kept in **`ContentView.availableModels`** (default
-  `gemini-3.5-flash`) — that list is the source of truth when Google retires
-  model IDs. The API key lives in the macOS login Keychain
-  (`KeychainStore`), migrated automatically from the old UserDefaults location
-  on first launch.
+  Live model IDs are kept in the **`CloudProviders.gemini`** registry row in
+  `AnalysisEngine.swift` (default `gemini-3.5-flash`) — that registry is the
+  source of truth when Google retires model IDs; stored ids heal back to the
+  default on load. The API key lives in the macOS login Keychain
+  (`KeychainStore.geminiAPIKey`), migrated automatically from the old
+  UserDefaults location on first launch.
+- **OpenAI engine** (`OpenAIEngine` + `OpenAIClient`) — two-step cloud
+  pipeline: diarized transcription (`gpt-4o-transcribe-diarize`,
+  `diarized_json`, 25 MB upload cap) followed by a structured
+  chat-completion analysis (default `gpt-5.6-terra`; models live in the
+  `CloudProviders.openai` registry row). The key lives in the Keychain
+  (`KeychainStore.openaiAPIKey`).
 - **Recording never requires a key.** Every recording is saved the moment you
   stop — *before* any analysis — to
   `~/Library/Application Support/EchoScribe/` (a `meetings.json` index plus one
@@ -94,8 +101,8 @@ tccutil reset Reminders  com.echoscribe.EchoScribe
 On-device transcription (the macOS 26 `SpeechTranscriber` API) needs no extra
 Speech-recognition permission; its language model downloads into system storage on
 first use. On-device summarization requires **Apple Intelligence** to be enabled in
-System Settings — without it, the app falls back to Gemini (with a key) or explains
-what's missing.
+System Settings — without it, the app falls back to a configured cloud engine
+(Gemini or OpenAI, with a key) or explains what's missing.
 
 ---
 
@@ -138,15 +145,22 @@ after editing `Packaging/IconGen.swift`.
 - `EchoScribeApp.swift` — `@main` app, window, menu-bar item
 - `ContentView.swift` — main UI: recorder, history list, results workspace, Settings
 - `MeetingStore.swift` — persistent meeting history (atomic JSON index + audio files)
-- `AnalysisEngine.swift` — engine protocol, `GeminiEngine` adapter, Auto resolution
+- `AnalysisEngine.swift` — engine protocol, `GeminiEngine` adapter, Auto
+  resolution, and the `CloudProviders` registry (cloud model lists, picker
+  rows, key fields, stored-model healing)
 - `AppleAnalysisEngine.swift` — on-device transcription + summarization (macOS 26+)
 - `TranscriptChunker.swift` — token-budget chunking for the on-device model window
 - `RetryPolicy.swift` — budgeted retry helper (context-window overflow fallback)
-- `KeychainStore.swift` — Keychain storage for the Gemini API key
+- `KeychainStore.swift` — Keychain storage for the cloud API keys (Gemini, OpenAI)
 - `AudioRecorderManager.swift` — recording + level metering (`AudioLevelMonitor`)
 - `AudioPlaybackManager.swift` — playback of stored meeting audio
 - `GeminiClient.swift` — Gemini request/response + user-facing API error mapping
+- `OpenAIClient.swift` — stateless OpenAI request builders/decoders + user-facing
+  API error mapping
+- `OpenAIEngine.swift` — two-step OpenAI pipeline (diarized transcription, then
+  structured chat analysis)
 - `EventKitManager.swift` — Reminders integration
-- `Tests/` — unit tests (store, resolver, chunker, segmentation, error mapping,
+- `Tests/` — unit tests (store, resolver, provider catalog, chunker, segmentation,
+  Gemini and OpenAI error mapping, OpenAI request builders and transcript mapping,
   retry policy, Keychain storage) plus a FoundationModels integration test that runs
   when Apple Intelligence is available

@@ -32,7 +32,8 @@ support branches.
 **In scope**
 
 - The macOS app in [`macos-native/`](macos-native/) — this is the primary product.
-  Of particular interest: anything that exposes the Gemini API key from the Keychain
+  Of particular interest: anything that exposes a cloud API key (Gemini or OpenAI)
+  from the Keychain
   ([`KeychainStore.swift`](macos-native/KeychainStore.swift)), anything that reads or
   destroys meeting audio and transcripts outside
   [`MeetingStore`](macos-native/MeetingStore.swift), and anything that achieves code
@@ -54,13 +55,13 @@ support branches.
 - **`server.js` is a local development server**, not a hosted service. It serves static
   files so a browser can load the prototype. Findings that require deploying it to the
   public internet are out of scope.
-- **Choosing the Gemini engine uploads audio to Google** under your own API key. This is
-  stated in the README and in the app; it's the point of that engine, not a leak.
-  The Apple on-device engine sends nothing off the machine.
+- **Choosing a cloud engine (Gemini or OpenAI) uploads audio to that provider** under
+  your own API key. This is stated in the README and in the app; it's the point of
+  those engines, not a leak. The Apple on-device engine sends nothing off the machine.
 
 ## What EchoScribe does with your data
 
 Meetings live only on your Mac, in `~/Library/Application Support/EchoScribe/` — a
 `meetings.json` index plus one `.m4a` per meeting. Deleting a meeting in the app deletes
-its audio. Nothing is uploaded anywhere unless you pick the Gemini engine, and the
-project has no servers, no telemetry, and no analytics.
+its audio. Nothing is uploaded anywhere unless you pick a cloud engine (Gemini or
+OpenAI), and the project has no servers, no telemetry, and no analytics.

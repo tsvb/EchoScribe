@@ -77,15 +77,19 @@ results count.
   reintroduce the old `@AppStorage("gemini_api_key")` pattern for any provider.
 - Design/plan history: `docs/superpowers/` (dated records — don't treat as living docs).
 
-## Gemini API facts (verified 2026-07; do not "correct" these backwards)
+## Gemini API facts (verified 2026-08; do not "correct" these backwards)
 
 - Current API keys start with **`AQ.`** (AI Studio only issues these now; legacy
   `AIza` keys die Sept 2026). Never tell users to get an `AIza` key.
 - Live models are listed in the `CloudProviders.gemini` registry row in
   `AnalysisEngine.swift` (default `gemini-3.5-flash`; the web app keeps its own
-  `LIVE_MODELS` copy). `gemini-1.5-*` and `gemini-2.0-*` are retired and 404.
+  `LIVE_MODELS` copy + a static `<select>` in `index.html`). `gemini-3.6-flash`
+  went GA July 2026. `gemini-1.5-*` and `gemini-2.0-*` are retired and 404.
   Google churns model IDs ~yearly — on a "model not available" bug, check
   ai.google.dev/gemini-api/docs/deprecations before debugging app code.
+- The newest models deprecate the `temperature`/`top_p`/`top_k` sampling params.
+  EchoScribe's request builders send only `responseMimeType`/`responseSchema` —
+  keep it that way.
 - Key goes in the `x-goog-api-key` header, not the URL. Error envelope parsing
   lives in `GeminiClient.userFacingError` (unit-tested).
 
@@ -102,8 +106,14 @@ results count.
 - The transcription model is a fixed constant (`OpenAIClient.transcriptionModel`),
   deliberately not user-selectable; if OpenAI retires it, the fix is an app update.
 - Error envelope parsing lives in `OpenAIClient.userFacingError` (unit-tested).
-  Quota exhaustion arrives as HTTP 429 with code `insufficient_quota` — it must
-  be distinguished from plain rate limiting.
+  Quota exhaustion arrives as HTTP 429 and must be distinguished from plain rate
+  limiting. Legacy envelopes carry `code: insufficient_quota`; current docs put
+  `insufficient_quota` in `error.type` with the specific cause in `error.code`
+  (exactly: `credit_balance_exhausted`, `organization_spend_limit_exceeded`,
+  `project_spend_limit_exceeded`, `organization_usage_limit_exceeded`).
+  `userFacingError` matches both shapes.
+- API docs now live at developers.openai.com (platform.openai.com/docs 301s
+  there) — verify facts against that domain.
 
 ## Conventions
 

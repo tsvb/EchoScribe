@@ -2,7 +2,7 @@
 
 **Status:** Complete — implemented and merged to main 2026-07-20. Historical record; do not execute.
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Execution boilerplate removed 2026-08-01 — this plan was completed and merged 2026-07-20 (see the status line above). Do not execute; unchecked `- [ ]` boxes below are an artifact of the original template, not open work.
 
 **Goal:** Persist every recording + analysis as a browsable meeting history, and make analysis engine-agnostic: Apple on-device (SpeechTranscriber + FoundationModels) with no API key, or Gemini (optional).
 

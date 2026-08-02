@@ -24,7 +24,7 @@ EchoScribe is a native SwiftUI meeting assistant. Hit record, stop when you're d
 Two design decisions drive everything else:
 
 - **Recording is sacred.** Audio is saved to disk the moment you stop — *before* any analysis runs. A failed, skipped, or keyless analysis never loses a recording; you can re-analyze any past meeting later with whichever engine you like.
-- **Analysis is pluggable.** A small `AnalysisEngine` protocol backs two interchangeable engines, so the app works fully offline on new Macs and still works (via Gemini) on older ones.
+- **Analysis is pluggable.** A small `AnalysisEngine` protocol backs three interchangeable engines, so the app works fully offline on new Macs and still works (via Gemini or OpenAI) on older ones.
 
 **Features at a glance**
 
@@ -43,6 +43,7 @@ Two design decisions drive everything else:
 | Run the app & record | macOS 14 (Sonoma) or later |
 | On-device analysis | macOS 26+ with **Apple Intelligence** enabled |
 | Gemini analysis *(optional)* | A [Google AI Studio](https://aistudio.google.com/apikey) API key |
+| OpenAI analysis *(optional)* | An [OpenAI platform](https://platform.openai.com/api-keys) API key |
 
 On first launch, macOS will ask for **Microphone** access (to record), and for **Reminders** access if you export action items.
 
@@ -50,47 +51,49 @@ On first launch, macOS will ask for **Microphone** access (to record), and for *
 
 Pick in **Settings → Analysis Engine** (default: **Auto**).
 
-| | Apple on-device | Gemini |
-|---|---|---|
-| **Transcription** | `SpeechTranscriber` | Audio uploaded to the Gemini API |
-| **Summarization** | FoundationModels, chunked map-reduce for long transcripts | `gemini-3.5-flash` by default (model selectable in Settings) |
-| **Speaker names** | No — transcript turns are unattributed | Yes — per-speaker dialogue attribution |
-| **Privacy** | Audio never leaves the Mac | Audio and transcript go to Google |
-| **Cost / setup** | Free, no API key | Free [AI Studio](https://aistudio.google.com/apikey) API key |
-| **Requires** | macOS 26 with Apple Intelligence enabled | Any supported macOS + network |
+| | Apple on-device | Gemini | OpenAI |
+|---|---|---|---|
+| **Transcription** | `SpeechTranscriber` | Audio uploaded to the Gemini API | Audio uploaded to OpenAI (`gpt-4o-transcribe-diarize`, 25 MB cap) |
+| **Summarization** | FoundationModels, chunked map-reduce for long transcripts | `gemini-3.5-flash` by default (model selectable in Settings) | `gpt-5.6-terra` by default (model selectable in Settings) |
+| **Speaker names** | No — transcript turns are unattributed | Yes — per-speaker dialogue attribution | Yes — true voice-based diarization |
+| **Privacy** | Audio never leaves the Mac | Audio and transcript go to Google | Audio and transcript go to OpenAI |
+| **Cost / setup** | Free, no API key | Free [AI Studio](https://aistudio.google.com/apikey) API key | [OpenAI](https://platform.openai.com/api-keys) API key (paid) |
+| **Requires** | macOS 26 with Apple Intelligence enabled | Any supported macOS + network | Any supported macOS + network |
 
-**Auto** picks Apple when available, else Gemini when a key is configured, else shows an actionable error explaining exactly what to enable.
+**Auto** picks Apple when available, else the first cloud provider with a configured key (Gemini, then OpenAI), else shows an actionable error explaining exactly what to enable.
 
 > [!NOTE]
-> **Recording never requires an API key.** Engines only matter at analysis time — record now, analyze later. You can even re-analyze an on-device meeting with Gemini afterwards to get speaker names.
+> **Recording never requires an API key.** Engines only matter at analysis time — record now, analyze later. You can even re-analyze an on-device meeting with Gemini or OpenAI afterwards to get speaker names.
 
 > [!IMPORTANT]
-> Current AI Studio keys start with **`AQ.`** — legacy `AIza` keys stop working in September 2026. The key is stored in the macOS Keychain, not in preferences.
+> Current AI Studio keys start with **`AQ.`** (legacy `AIza` keys stop working in September 2026); OpenAI keys start with **`sk-`** or **`sk-proj-`**. Both keys are stored in the macOS Keychain, not in preferences.
 
 ## Privacy and your data
 
 - Meeting history lives locally in `~/Library/Application Support/EchoScribe/` — a `meetings.json` index plus one `.m4a` per meeting. Delete a meeting in-app and its audio is deleted with it.
-- With the Apple engine, nothing is sent anywhere. With Gemini, audio is uploaded to Google under your own API key.
+- With the Apple engine, nothing is sent anywhere. With Gemini or OpenAI, audio is uploaded to that provider under your own API key.
 
 ## How it works
 
 ```mermaid
 flowchart LR
     REC["AudioRecorderManager"] -- "stop = save first" --> STORE["MeetingStore<br/>meetings.json + .m4a"]
-    STORE --> RES{"resolveEngine<br/>(auto / apple / gemini)"}
+    STORE --> RES{"resolveEngine<br/>(auto / apple / gemini / openai)"}
     RES -- "Apple Intelligence available" --> APPLE["AppleAnalysisEngine<br/>SpeechTranscriber + FoundationModels"]
-    RES -- "key in Keychain" --> GEM["GeminiEngine<br/>audio upload"]
+    RES -- "Gemini key in Keychain" --> GEM["GeminiEngine<br/>audio upload"]
+    RES -- "OpenAI key in Keychain" --> OAI["OpenAIEngine<br/>diarized transcription + chat"]
     RES -. "unavailable or failed" .-> KEPT["Kept as 'Not analyzed yet'<br/>re-analyze any time"]
     APPLE --> STORE
     GEM --> STORE
+    OAI --> STORE
     STORE --> UI["SwiftUI history + detail views"]
     UI --> EK["EventKitManager → Apple Reminders"]
 ```
 
 - **`MeetingStore`** is the single source of truth. All mutations write the JSON index atomically and roll back on failure; audio files are deleted in exactly one place (`delete(id:)`). The UI always renders the *stored* analysis for the selected meeting, never a client's in-memory result.
-- **`AnalysisEngine`** is a small protocol with two implementations. Engine selection is a pure, unit-tested function (`resolveEngine(preference:context:)`).
+- **`AnalysisEngine`** is a small protocol with three implementations. Cloud providers are rows in a `CloudProviders` registry that drives the settings UI, model lists, and auto-order; engine selection is a pure, unit-tested function (`resolveEngine(preference:context:)`).
 - **On-device long transcripts** are summarized with chunked map-reduce sized to the model's context window (`TranscriptChunker`); a context-window overflow retries once at a smaller chunk budget (`RetryPolicy`).
-- **`KeychainStore`** holds the Gemini API key in the Keychain.
+- **`KeychainStore`** holds the cloud API keys (Gemini and OpenAI) in the Keychain.
 - **No external dependencies.** Plain `ObservableObject` managers, no package manager, nothing to vendor. High-frequency UI updates (audio metering, playback ticks) are scoped to small observer subviews so the main view tree stays quiet.
 
 The deep technical doc — permissions/TCC details, release process, per-file source map — is [`macos-native/README.md`](macos-native/README.md).
