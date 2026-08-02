@@ -2,9 +2,9 @@
  * EchoScribe - Premium Local Meeting Assistant Core Logic
  */
 
-// Live Gemini models as of July 2026. Google retires model IDs regularly
+// Live Gemini models as of August 2026. Google retires model IDs regularly
 // (1.5: Sept 2025, 2.0: June 2026) — a retired model 404s, surfaced via toast.
-const LIVE_MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-pro-preview'];
+const LIVE_MODELS = ['gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-pro-preview'];
 const DEFAULT_MODEL = 'gemini-3.5-flash';
 
 // Application State

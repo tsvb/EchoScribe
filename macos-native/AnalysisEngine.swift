@@ -30,7 +30,7 @@ struct TranscriptSegment: Codable, Identifiable {
     let speaker: String
     let text: String
 
-    // `id` is generated locally and isn't part of the Gemini JSON payload,
+    // `id` is generated locally and isn't part of any engine's JSON payload,
     // so keep it out of the coding keys (otherwise decoding would look for it).
     enum CodingKeys: String, CodingKey {
         case speaker, text
@@ -137,12 +137,14 @@ enum CloudProviders {
         keyPlaceholder: "AQ.… (from aistudio.google.com/apikey)",
         keychain: .geminiAPIKey,
         modelDefaultsKey: "gemini_selected_model",
-        // Live Gemini models as of July 2026. Google retires model IDs regularly
-        // (1.5: Sept 2025, 2.0: June 2026) — when it happens again, the API's 404
-        // is surfaced in the UI and points the user here.
+        // Live Gemini models, verified against ai.google.dev August 2026. Google
+        // retires model IDs regularly (1.5: Sept 2025, 2.0: June 2026) — when it
+        // happens again, the API's 404 is surfaced in the UI and points the user
+        // here. gemini-3.6-flash went GA July 2026 (2.0-flash's replacement).
         defaultModel: "gemini-3.5-flash",
         models: [
             ("gemini-3.5-flash", "Gemini 3.5 Flash (recommended)"),
+            ("gemini-3.6-flash", "Gemini 3.6 Flash (newest — cheaper, efficient)"),
             ("gemini-3.1-flash-lite", "Gemini 3.1 Flash-Lite (fastest)"),
             ("gemini-3.1-pro-preview", "Gemini 3.1 Pro (preview — paid key required)"),
         ],
@@ -167,6 +169,12 @@ enum CloudProviders {
         ],
         makeEngine: { OpenAIEngine(apiKey: $0, chatModel: $1) }
     )
+
+    /// "Gemini or OpenAI" — the provider disjunction used in user-facing
+    /// fallback guidance wherever the registered providers are the alternatives.
+    static var displayNameList: String {
+        all.map(\.displayName).joined(separator: " or ")
+    }
 
     static func find(_ id: String?) -> CloudProvider? {
         guard let id else { return nil }

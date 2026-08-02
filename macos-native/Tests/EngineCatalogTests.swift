@@ -72,7 +72,8 @@ final class EngineCatalogTests: XCTestCase {
         XCTAssertEqual(gemini.modelDefaultsKey, "gemini_selected_model")
         XCTAssertEqual(gemini.keychain.account, "gemini_api_key")
         XCTAssertEqual(gemini.models.map(\.id),
-                       ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.1-pro-preview"])
+                       ["gemini-3.5-flash", "gemini-3.6-flash",
+                        "gemini-3.1-flash-lite", "gemini-3.1-pro-preview"])
     }
 
     func testProviderRowsBuildTheirOwnEngine() throws {

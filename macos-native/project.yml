@@ -53,8 +53,10 @@ targets:
         # ~/Library/Application Support/EchoScribe into a container and hide
         # existing meeting history.
 
-  # Logic tests. GeminiClient.swift is compiled directly into the bundle
-  # (no app TEST_HOST needed — keeps `xcodebuild test` simple and signing-free).
+  # Logic tests. Production sources under test are compiled directly into the
+  # bundle (no app TEST_HOST needed — keeps `xcodebuild test` simple and
+  # signing-free). New production files that tests exercise must be added to
+  # `sources` below.
   EchoScribeTests:
     type: bundle.unit-test
     platform: macOS

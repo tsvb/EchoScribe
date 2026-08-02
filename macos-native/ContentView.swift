@@ -886,8 +886,9 @@ struct ContentView: View {
         }
         .frame(minWidth: 1000, minHeight: 650)
         .onAppear {
-            // Load the Gemini key from the Keychain, migrating the legacy
-            // UserDefaults copy once (it used to live in plaintext defaults).
+            // Migrate the legacy plaintext-UserDefaults Gemini key into the
+            // Keychain once, then load every registered provider's key from
+            // the Keychain (loop below).
             if let legacy = UserDefaults.standard.string(forKey: "gemini_api_key") {
                 // Migrate only into a CONFIRMED-empty Keychain, and only drop the
                 // legacy copy once the Keychain write is confirmed (never lose the

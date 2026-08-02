@@ -89,7 +89,7 @@ final class AppleAnalysisEngine: AnalysisEngine {
             return english
         }
         throw AnalysisError(message:
-            "On-device transcription doesn't support this language. Switch the analysis engine to Gemini in Settings.")
+            "On-device transcription doesn't support this language. Switch the analysis engine to \(CloudProviders.displayNameList) in Settings.")
     }
 
     // MARK: - Summarization (FoundationModels, TN3193 map-reduce)
@@ -112,7 +112,7 @@ final class AppleAnalysisEngine: AnalysisEngine {
                           progress: @escaping (String) -> Void) async throws -> MeetingNotes {
         guard SystemLanguageModel.default.isAvailable else {
             throw AnalysisError(message:
-                "Apple Intelligence isn't available. Enable it in System Settings, or switch the analysis engine to Gemini.")
+                "Apple Intelligence isn't available. Enable it in System Settings, or switch the analysis engine to \(CloudProviders.displayNameList).")
         }
         // Spec §6: on context-window overflow, retry once at a smaller budget
         // (TN3193). withBudgetRetry has no notion of progress reporting, so
