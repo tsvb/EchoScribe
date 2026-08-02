@@ -37,7 +37,13 @@ targets:
 
         # Info.plist is generated; privacy strings are injected via these
         # INFOPLIST_KEY_* settings so the whole build lives in one spec.
+        # INFOPLIST_FILE is pinned empty because XcodeGen otherwise
+        # auto-detects any Info.plist under the target path — including a
+        # leftover built product's plist in build/ (release.sh's
+        # -derivedDataPath), which makes the next Release build cycle on
+        # itself ("Cycle inside EchoScribe" / ProcessInfoPlistFile in==out).
         GENERATE_INFOPLIST_FILE: "YES"
+        INFOPLIST_FILE: ""
         INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.productivity"
         INFOPLIST_KEY_NSMicrophoneUsageDescription: "EchoScribe records meeting audio to transcribe and analyze it."
         # The code calls requestFullAccessToReminders on macOS 14+, so the
