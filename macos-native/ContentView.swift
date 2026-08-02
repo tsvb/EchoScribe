@@ -5,6 +5,9 @@ struct ContentView: View {
     // API State. Keys are held in memory by provider id and mirrored into the
     // Keychain on change; the model lists live in the CloudProviders registry.
     @State private var cloudKeys: [String: String] = [:]
+    // Providers whose Keychain read FAILED (vs "no item"): their field shows ""
+    // that we invented, so an empty value must never be saved back as a delete.
+    @State private var unreadableKeyProviders: Set<String> = []
     @State private var showSettings = false
     
     // Call Team State
@@ -886,20 +889,36 @@ struct ContentView: View {
             // Load the Gemini key from the Keychain, migrating the legacy
             // UserDefaults copy once (it used to live in plaintext defaults).
             if let legacy = UserDefaults.standard.string(forKey: "gemini_api_key") {
-                // Migrate only into an empty Keychain, and only drop the legacy copy
-                // once the Keychain write is confirmed (never lose the only copy).
-                if legacy.isEmpty {
-                    UserDefaults.standard.removeObject(forKey: "gemini_api_key")
-                } else if KeychainStore.geminiAPIKey.read() == nil,
-                          KeychainStore.geminiAPIKey.save(legacy) {
-                    UserDefaults.standard.removeObject(forKey: "gemini_api_key")
-                } else if KeychainStore.geminiAPIKey.read() != nil {
-                    // Keychain already authoritative; stale defaults copy can go.
-                    UserDefaults.standard.removeObject(forKey: "gemini_api_key")
+                // Migrate only into a CONFIRMED-empty Keychain, and only drop the
+                // legacy copy once the Keychain write is confirmed (never lose the
+                // only copy). A failed read confirms nothing — skip the migration
+                // this launch and retry on the next one.
+                do {
+                    if legacy.isEmpty {
+                        UserDefaults.standard.removeObject(forKey: "gemini_api_key")
+                    } else if try KeychainStore.geminiAPIKey.read() == nil {
+                        if KeychainStore.geminiAPIKey.save(legacy) {
+                            UserDefaults.standard.removeObject(forKey: "gemini_api_key")
+                        }
+                    } else {
+                        // Keychain already authoritative; stale defaults copy can go.
+                        UserDefaults.standard.removeObject(forKey: "gemini_api_key")
+                    }
+                } catch {
+                    // Keychain unreadable (locked / access denied) — leave the
+                    // legacy copy in place for a future launch.
                 }
             }
             for provider in CloudProviders.all {
-                cloudKeys[provider.id] = provider.keychain.read() ?? ""
+                do {
+                    cloudKeys[provider.id] = try provider.keychain.read() ?? ""
+                    unreadableKeyProviders.remove(provider.id)
+                } catch {
+                    // The key may exist but be unreadable. Show an empty field,
+                    // and remember not to issue deletes for this provider.
+                    cloudKeys[provider.id] = ""
+                    unreadableKeyProviders.insert(provider.id)
+                }
 
                 // Heal a stored model the provider has since retired (e.g. the
                 // old gemini-2.0-flash default) — otherwise every analysis
@@ -916,13 +935,18 @@ struct ContentView: View {
             }
         }
         .onChange(of: cloudKeys) { oldValue, newValue in
-            // `oldValue[id] == nil` is the onAppear seeding pass, never a user
-            // edit. Saving there would push "" — which deletes the Keychain
-            // item — for any provider whose read() failed for a reason other
-            // than "no such item" (locked keychain, denied access prompt).
+            // `oldValue[id] == nil` is the onAppear seeding pass — not a user
+            // edit, so nothing may be written from it. (Read-failure protection
+            // is handled separately below; both guards are load-bearing.)
             for provider in CloudProviders.all
             where oldValue[provider.id] != nil && oldValue[provider.id] != newValue[provider.id] {
-                provider.keychain.save(newValue[provider.id] ?? "")   // empty string deletes
+                let value = newValue[provider.id] ?? ""
+                guard KeychainStore.shouldPersist(
+                    newValue: value,
+                    readFailed: unreadableKeyProviders.contains(provider.id)) else { continue }
+                if provider.keychain.save(value) {   // empty string deletes
+                    unreadableKeyProviders.remove(provider.id)
+                }
             }
         }
     }
