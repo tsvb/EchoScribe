@@ -34,6 +34,14 @@ final class OpenAIClientErrorTests: XCTestCase {
         XCTAssertTrue(msg.localizedCaseInsensitiveContains("settings"), msg)
     }
 
+    func testModelNotFound404ForTranscriptionModelPointsAtUpdateNotSettings() {
+        let body = envelope(message: "The model `gpt-4o-transcribe-diarize` does not exist.", type: "invalid_request_error", code: "model_not_found")
+        let msg = OpenAIClient.userFacingError(statusCode: 404, body: body, model: OpenAIClient.transcriptionModel)
+        XCTAssertTrue(msg.contains(OpenAIClient.transcriptionModel), msg)
+        XCTAssertTrue(msg.localizedCaseInsensitiveContains("update"), msg)
+        XCTAssertFalse(msg.contains("Choose a newer model"), msg)
+    }
+
     func testInsufficientQuotaAt429PrecedesGenericRateLimitMessage() {
         let body = envelope(message: "You exceeded your current quota.", type: "insufficient_quota", code: "insufficient_quota")
         let msg = OpenAIClient.userFacingError(statusCode: 429, body: body, model: "gpt-4o")

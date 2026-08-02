@@ -50,6 +50,26 @@ final class OpenAIEngineMappingTests: XCTestCase {
         XCTAssertThrowsError(try OpenAIClient.decodeChatPayload(Data(envelope.utf8)))
     }
 
+    func testDecodeChatPayloadThrowsAnalysisErrorOnMalformedInnerPayload() {
+        // The envelope itself decodes fine, but `content` is not valid JSON
+        // for ChatAnalysisPayload (missing required fields) — this must
+        // surface as an AnalysisError with OpenAI context, not a raw
+        // Foundation DecodingError.
+        let inner = """
+        {"summary":"missing everything else"}
+        """
+        let innerEscaped = inner.replacingOccurrences(of: "\"", with: "\\\"")
+        let envelope = """
+        {"choices":[{"message":{"content":"\(innerEscaped)"}}]}
+        """
+        XCTAssertThrowsError(try OpenAIClient.decodeChatPayload(Data(envelope.utf8))) { error in
+            guard let analysisError = error as? AnalysisError else {
+                return XCTFail("Expected AnalysisError, got \(type(of: error)): \(error)")
+            }
+            XCTAssertTrue(analysisError.message.contains("OpenAI"), analysisError.message)
+        }
+    }
+
     // MARK: - resolvedTranscript
 
     func testResolvedTranscriptAppliesMappedNames() {

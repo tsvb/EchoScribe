@@ -51,9 +51,11 @@ enum OpenAIClient {
     }
 
     /// Fixed transcription model — this client only ever calls the diarizing
-    /// transcription endpoint with this model (see OpenAIEngine.transcriptionModel
-    /// for the value the engine layer reports as progress/model metadata).
-    private static let transcriptionModel = "gpt-4o-transcribe-diarize"
+    /// transcription endpoint with this model. Internal (not private) so
+    /// OpenAIEngine.transcriptionModel can reference this as the single
+    /// source of truth for the value the engine layer reports as
+    /// progress/model metadata.
+    static let transcriptionModel = "gpt-4o-transcribe-diarize"
 
     // MARK: - Request builders (pure, unit-tested)
 
@@ -189,7 +191,11 @@ enum OpenAIClient {
             throw AnalysisError(message: "Unexpected response structure from OpenAI API")
         }
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        return try JSONDecoder().decode(ChatAnalysisPayload.self, from: Data(trimmed.utf8))
+        do {
+            return try JSONDecoder().decode(ChatAnalysisPayload.self, from: Data(trimmed.utf8))
+        } catch {
+            throw AnalysisError(message: "OpenAI returned analysis JSON that couldn't be decoded: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Error mapping (pure, unit-tested)
@@ -208,6 +214,9 @@ enum OpenAIClient {
             return "This OpenAI account is out of credit (insufficient_quota). Add billing at platform.openai.com, or switch engines in Settings."
         }
         if statusCode == 404 || payload?.code == "model_not_found" {
+            if model == transcriptionModel {
+                return "The transcription model \"\(transcriptionModel)\" is no longer available — OpenAI has retired it. Update EchoScribe to a newer version, or switch the analysis engine in Settings."
+            }
             return "The model \"\(model)\" is no longer available — OpenAI has retired it. Choose a newer model in Settings."
         }
         if statusCode == 403 {

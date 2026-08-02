@@ -8,7 +8,7 @@ final class OpenAIEngine: AnalysisEngine {
     let id = "openai"
     var modelName: String { chatModel }
 
-    static let transcriptionModel = "gpt-4o-transcribe-diarize"
+    static let transcriptionModel = OpenAIClient.transcriptionModel
     static let maxUploadBytes = 25 * 1024 * 1024
 
     private let apiKey: String

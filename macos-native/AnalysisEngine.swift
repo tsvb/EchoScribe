@@ -44,7 +44,7 @@ struct FollowUpEmail: Codable {
 
 /// Seam between the app and whatever produces a MeetingAnalysisResponse.
 /// Implementations: GeminiEngine (cloud, optional key), AppleAnalysisEngine
-/// (on-device, macOS 26+, added in Phase 2).
+/// (on-device, macOS 26+, added in Phase 2), OpenAIEngine (cloud, optional key).
 protocol AnalysisEngine {
     var id: String { get }          // "apple" | "gemini" | "openai" — stored on Meeting.engine
     var modelName: String { get }   // stored on Meeting.model

@@ -8,7 +8,7 @@ struct Meeting: Codable, Identifiable {
     let createdAt: Date
     let duration: TimeInterval
     var participants: [String]
-    var engine: String?                     // "apple" | "gemini" — what produced the analysis
+    var engine: String?                     // "apple" | "gemini" | "openai" — what produced the analysis
     var model: String?                      // e.g. "gemini-3.5-flash" or "apple-on-device"
     var analysis: MeetingAnalysisResponse?  // nil = not analyzed yet
     var audioFileName: String               // "<id>.m4a", relative to the store directory
