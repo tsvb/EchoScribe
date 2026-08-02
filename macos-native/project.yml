@@ -67,6 +67,8 @@ targets:
       - path: AppleAnalysisEngine.swift
       - path: RetryPolicy.swift
       - path: KeychainStore.swift
+      - path: OpenAIClient.swift
+      - path: OpenAIEngine.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.echoscribe.EchoScribeTests
