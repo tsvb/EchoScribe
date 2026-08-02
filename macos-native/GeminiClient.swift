@@ -1,41 +1,6 @@
 import Foundation
 import Combine
 
-struct MeetingAnalysisResponse: Codable {
-    let transcript: [TranscriptSegment]
-    let summary: String
-    let sentiment: String
-    let actionItems: [String]
-    let followUpEmail: FollowUpEmail
-    
-    enum CodingKeys: String, CodingKey {
-        case transcript
-        case summary
-        case sentiment
-        case actionItems = "action_items"
-        case followUpEmail = "follow_up_email"
-    }
-}
-
-struct TranscriptSegment: Codable, Identifiable {
-    // Stored once per instance. A computed `UUID()` returns a brand-new id on
-    // every access, which breaks SwiftUI list identity/diffing.
-    let id = UUID()
-    let speaker: String
-    let text: String
-
-    // `id` is generated locally and isn't part of the Gemini JSON payload,
-    // so keep it out of the coding keys (otherwise decoding would look for it).
-    enum CodingKeys: String, CodingKey {
-        case speaker, text
-    }
-}
-
-struct FollowUpEmail: Codable {
-    let subject: String
-    let body: String
-}
-
 class GeminiClient: ObservableObject {
     @Published var isProcessing = false
     @Published var error: String?

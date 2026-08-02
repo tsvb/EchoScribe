@@ -2,19 +2,9 @@ import SwiftUI
 import FoundationModels
 
 struct ContentView: View {
-    // API State
-    @State private var apiKey = ""
-    @AppStorage("gemini_selected_model") private var selectedModel = ContentView.defaultModel
-
-    // Live Gemini models as of July 2026. Google retires model IDs regularly
-    // (1.5: Sept 2025, 2.0: June 2026) — when it happens again, the API's 404
-    // is surfaced in the UI and points the user here.
-    static let defaultModel = "gemini-3.5-flash"
-    static let availableModels: [(id: String, label: String)] = [
-        ("gemini-3.5-flash", "Gemini 3.5 Flash (recommended)"),
-        ("gemini-3.1-flash-lite", "Gemini 3.1 Flash-Lite (fastest)"),
-        ("gemini-3.1-pro-preview", "Gemini 3.1 Pro (preview — paid key required)"),
-    ]
+    // API State. Keys are held in memory by provider id and mirrored into the
+    // Keychain on change; the model lists live in the CloudProviders registry.
+    @State private var cloudKeys: [String: String] = [:]
     @State private var showSettings = false
     
     // Call Team State
@@ -26,7 +16,6 @@ struct ContentView: View {
     
     // Subsystem States
     @StateObject private var recorder = AudioRecorderManager()
-    @StateObject private var gemini = GeminiClient()
     @StateObject private var eventKit = EventKitManager()
     @StateObject private var store = MeetingStore()
     @StateObject private var playback = AudioPlaybackManager()
@@ -36,8 +25,8 @@ struct ContentView: View {
     @State private var selectedMeetingID: UUID?
     @State private var analysisError: String?
 
-    // Engine preference ("auto" | "apple" | "gemini"). Auto prefers the
-    // on-device Apple engine when available.
+    // Engine preference ("auto" | "apple" | a CloudProviders id). Auto prefers
+    // the on-device Apple engine when available.
     @AppStorage("analysis_engine") private var enginePreferenceRaw = "auto"
     private var appleEngineAvailable: Bool {
         if #available(macOS 26.0, *) {
@@ -50,16 +39,27 @@ struct ContentView: View {
         store.meetings.first { $0.id == selectedMeetingID }
     }
 
+    /// Editing binding for one provider's key field; missing entries read empty.
+    private func keyBinding(_ provider: CloudProvider) -> Binding<String> {
+        Binding(get: { cloudKeys[provider.id] ?? "" },
+                set: { cloudKeys[provider.id] = $0 })
+    }
+
+    /// Provider ids that currently have a usable key.
+    private var presentCloudKeys: Set<String> {
+        Set(cloudKeys.filter { !$0.value.isEmpty }.keys)
+    }
+
     private var displayedError: String? {
         analysisError ?? store.lastError ?? playback.lastError
     }
 
     /// True when the current engine preference cannot produce an analysis
-    /// (e.g. "gemini" selected with no key, or nothing available at all).
+    /// (e.g. a cloud engine selected with no key, or nothing available at all).
     private var engineUnavailable: Bool {
-        let preference = EnginePreference(rawValue: enginePreferenceRaw) ?? .auto
+        let preference = EnginePreference(raw: enginePreferenceRaw)
         let context = EngineContext(appleAvailable: appleEngineAvailable,
-                                    hasGeminiKey: !apiKey.isEmpty)
+                                    cloudKeys: presentCloudKeys)
         if case .none = resolveEngine(preference: preference, context: context) {
             return true
         }
@@ -244,9 +244,9 @@ struct ContentView: View {
     @State private var selectedTab = 0 // 0: Summary, 1: Transcript, 2: Action Items, 3: Email
     @State private var stepState = "Idle"
     @State private var progressText = ""
-    // Drives the processing ring's rotation. gemini.isProcessing only fires
-    // for the Gemini engine, so this local flag keeps the spinner animating
-    // for the on-device Apple engine too.
+    // Drives the processing ring's rotation. Engines report progress as text
+    // only, so this local flag keeps the spinner animating for whichever
+    // engine (cloud or on-device) is running.
     @State private var processingSpinner = false
     
     // Colors
@@ -461,7 +461,7 @@ struct ContentView: View {
                                         .clipShape(Capsule())
                                 }
                                 
-                                Text("Add who is on the call so analysis can attribute action items — and, with the Gemini engine, map dialogue to speakers.")
+                                Text("Add who is on the call so analysis can attribute action items — and, with a cloud engine, map dialogue to speakers.")
                                     .font(.system(size: 11))
                                     .foregroundStyle(.white.opacity(0.4))
                                 
@@ -622,7 +622,7 @@ struct ContentView: View {
                                                     .foregroundStyle(.white.opacity(0.9))
                                             } else if selectedTab == 1 {
                                                 // Transcript View
-                                                Text(meeting.engine == "gemini" ? "Speaker-Attributed Dialogue" : "Transcript")
+                                                Text(CloudProviders.transcriptHeader(engine: meeting.engine))
                                                     .font(.system(size: 18, weight: .bold))
                                                 
                                                 VStack(alignment: .leading, spacing: 14) {
@@ -779,7 +779,7 @@ struct ContentView: View {
                                         .font(.system(size: 22, weight: .bold, design: .rounded))
                                         .foregroundStyle(.white)
                                     
-                                    Text("List the participants and press the microphone to record. Analysis runs on-device with Apple Intelligence, or through Gemini when configured — transcripts, summaries, action items, and a follow-up email draft.")
+                                    Text("List the participants and press the microphone to record. Analysis runs on-device with Apple Intelligence, or through Gemini or OpenAI when configured — transcripts, summaries, action items, and a follow-up email draft.")
                                         .font(.system(size: 13))
                                         .multilineTextAlignment(.center)
                                         .lineSpacing(4)
@@ -824,7 +824,7 @@ struct ContentView: View {
                     Divider().background(Color.white.opacity(0.1))
                     
                     VStack(alignment: .leading, spacing: 14) {
-                        Text("Analysis can run fully on-device with Apple Intelligence — no key needed. A Gemini API key is optional: the Gemini engine adds speaker attribution and higher-polish summaries.")
+                        Text("Analysis can run fully on-device with Apple Intelligence — no key needed. A Gemini or OpenAI API key is optional: cloud engines add speaker attribution and higher-polish summaries; OpenAI performs true voice-based speaker diarization.")
                             .font(.system(size: 12))
                             .foregroundStyle(.white.opacity(0.6))
                             .lineSpacing(4)
@@ -837,39 +837,8 @@ struct ContentView: View {
                             Picker("", selection: $enginePreferenceRaw) {
                                 Text("Auto — on-device when available").tag("auto")
                                 Text("Apple on-device (private, no key)").tag("apple")
-                                Text("Gemini cloud (best quality, speaker names)").tag("gemini")
-                            }
-                            .pickerStyle(.menu)
-                            .labelsHidden()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 4)
-                            .background(Color.white.opacity(0.04))
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(borderDark, lineWidth: 1))
-                        }
-
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Gemini API Key (optional)")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.7))
-
-                            SecureField("AQ.… (from aistudio.google.com/apikey)", text: $apiKey)
-                                .textFieldStyle(.plain)
-                                .padding(10)
-                                .background(Color.white.opacity(0.04))
-                                .foregroundStyle(.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
-                                .overlay(RoundedRectangle(cornerRadius: 6).stroke(borderDark, lineWidth: 1))
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Model Selection")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.7))
-                            
-                            Picker("", selection: $selectedModel) {
-                                ForEach(ContentView.availableModels, id: \.id) { model in
-                                    Text(model.label).tag(model.id)
+                                ForEach(CloudProviders.all) { provider in
+                                    Text(provider.engineOptionLabel).tag(provider.id)
                                 }
                             }
                             .pickerStyle(.menu)
@@ -879,6 +848,11 @@ struct ContentView: View {
                             .background(Color.white.opacity(0.04))
                             .clipShape(RoundedRectangle(cornerRadius: 6))
                             .overlay(RoundedRectangle(cornerRadius: 6).stroke(borderDark, lineWidth: 1))
+                        }
+
+                        ForEach(CloudProviders.all) { provider in
+                            CloudProviderSettingsSection(provider: provider,
+                                                         apiKey: keyBinding(provider))
                         }
                     }
                     .padding(.horizontal, 20)
@@ -924,16 +898,32 @@ struct ContentView: View {
                     UserDefaults.standard.removeObject(forKey: "gemini_api_key")
                 }
             }
-            apiKey = KeychainStore.geminiAPIKey.read() ?? ""
+            for provider in CloudProviders.all {
+                cloudKeys[provider.id] = provider.keychain.read() ?? ""
 
-            // Heal a stored model that Google has since retired (e.g. the old
-            // gemini-2.0-flash default) — otherwise every analysis 404s.
-            if !ContentView.availableModels.contains(where: { $0.id == selectedModel }) {
-                selectedModel = ContentView.defaultModel
+                // Heal a stored model the provider has since retired (e.g. the
+                // old gemini-2.0-flash default) — otherwise every analysis
+                // fails. Done here rather than in the settings subview so
+                // runAnalysis sees healed values even if Settings never opens.
+                // Only rewrite an existing choice: writing on a missing key
+                // would pin users who never opened Settings to today's default.
+                if let stored = UserDefaults.standard.string(forKey: provider.modelDefaultsKey) {
+                    let healed = CloudProviders.healedModel(stored: stored, for: provider)
+                    if healed != stored {
+                        UserDefaults.standard.set(healed, forKey: provider.modelDefaultsKey)
+                    }
+                }
             }
         }
-        .onChange(of: apiKey) {
-            KeychainStore.geminiAPIKey.save(apiKey)
+        .onChange(of: cloudKeys) { oldValue, newValue in
+            // `oldValue[id] == nil` is the onAppear seeding pass, never a user
+            // edit. Saving there would push "" — which deletes the Keychain
+            // item — for any provider whose read() failed for a reason other
+            // than "no such item" (locked keychain, denied access prompt).
+            for provider in CloudProviders.all
+            where oldValue[provider.id] != nil && oldValue[provider.id] != newValue[provider.id] {
+                provider.keychain.save(newValue[provider.id] ?? "")   // empty string deletes
+            }
         }
     }
 
@@ -990,13 +980,22 @@ struct ContentView: View {
 
     func runAnalysis(on meeting: Meeting) {
         analysisError = nil
-        let preference = EnginePreference(rawValue: enginePreferenceRaw) ?? .auto
+        let preference = EnginePreference(raw: enginePreferenceRaw)
         let context = EngineContext(appleAvailable: appleEngineAvailable,
-                                    hasGeminiKey: !apiKey.isEmpty)
+                                    cloudKeys: presentCloudKeys)
         let engine: AnalysisEngine
         switch resolveEngine(preference: preference, context: context) {
-        case .gemini:
-            engine = GeminiEngine(client: gemini, apiKey: apiKey, model: selectedModel)
+        case .cloud(let id):
+            // Unreachable: the resolver only returns ids it found in the registry.
+            guard let provider = CloudProviders.find(id) else {
+                analysisError = "Unknown engine."
+                stepState = "Idle"
+                return
+            }
+            let model = CloudProviders.healedModel(
+                stored: UserDefaults.standard.string(forKey: provider.modelDefaultsKey),
+                for: provider)
+            engine = provider.makeEngine(cloudKeys[id] ?? "", model)
         case .apple:
             guard #available(macOS 26.0, *) else {
                 analysisError = "On-device analysis requires macOS 26 or newer."
@@ -1171,6 +1170,63 @@ struct PlaybackTimeLabel: View {
     }
 }
 
+/// One cloud provider's settings block: API key field plus model picker. The
+/// model selection is stored per provider under its own defaults key, so adding
+/// a registry row adds a section here with no other changes.
+private struct CloudProviderSettingsSection: View {
+    let provider: CloudProvider
+    @Binding var apiKey: String
+    @AppStorage private var selectedModel: String
+
+    // Mirrors ContentView.borderDark (an instance property there, so not
+    // reachable from this subview).
+    private let borderDark = Color.white.opacity(0.08)
+
+    init(provider: CloudProvider, apiKey: Binding<String>) {
+        self.provider = provider
+        self._apiKey = apiKey
+        self._selectedModel = AppStorage(wrappedValue: provider.defaultModel,
+                                         provider.modelDefaultsKey)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(provider.keyFieldLabel)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.7))
+
+                SecureField(provider.keyPlaceholder, text: $apiKey)
+                    .textFieldStyle(.plain)
+                    .padding(10)
+                    .background(Color.white.opacity(0.04))
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(borderDark, lineWidth: 1))
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("\(provider.displayName) Model")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.7))
+
+                Picker("", selection: $selectedModel) {
+                    ForEach(provider.models, id: \.id) { model in
+                        Text(model.label).tag(model.id)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 4)
+                .background(Color.white.opacity(0.04))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(borderDark, lineWidth: 1))
+            }
+        }
+    }
+}
+
 /// One compact history row: status dot, title (inline-renamable), date · duration,
 /// engine badge. Row-local rename state keeps ContentView untouched.
 struct MeetingRow: View {
@@ -1239,7 +1295,7 @@ struct MeetingRow: View {
             Spacer(minLength: 4)
 
             if let engine = meeting.engine {
-                Text(engine == "apple" ? "On-device" : "Gemini")
+                Text(CloudProviders.badgeLabel(engine: engine))
                     .font(.system(size: 8, weight: .bold))
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)

@@ -1,14 +1,16 @@
 import Foundation
 import Security
 
-/// Minimal generic-password Keychain wrapper for the Gemini API key.
-/// (The key previously lived in UserDefaults; ContentView migrates it once.)
+/// Minimal generic-password Keychain wrapper for the cloud API keys.
+/// (The Gemini key previously lived in UserDefaults; ContentView migrates it once.)
 struct KeychainStore {
     let service: String
     let account: String
 
     static let geminiAPIKey = KeychainStore(service: "com.echoscribe.EchoScribe",
                                             account: "gemini_api_key")
+    static let openaiAPIKey = KeychainStore(service: "com.echoscribe.EchoScribe",
+                                            account: "openai_api_key")
 
     func read() -> String? {
         var query = baseQuery
