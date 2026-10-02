@@ -151,4 +151,4 @@ Releases are cut with [`macos-native/scripts/release.sh`](macos-native/scripts/r
 
 ## License
 
-[MIT](LICENSE) © 2026 Tim VanBenschoten
+[MIT](LICENSE) © 2026 [Tim VanBenschoten](https://timvanbenschoten.com)
