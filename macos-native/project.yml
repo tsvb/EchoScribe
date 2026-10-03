@@ -26,6 +26,8 @@ targets:
         includes:
           - "*.swift"
       - path: Assets.xcassets
+      # Shown under the version in About EchoScribe (links to the project page).
+      - path: Credits.rtf
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.echoscribe.EchoScribe
